@@ -1,11 +1,11 @@
-package com.thecode007.turboXpressApi
+package com.thecode007.turboxpress
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 
 @SpringBootApplication
-class TurboXpressApiApplication
+class TurboXpressApplication
 
 fun main(args: Array<String>) {
-	runApplication<TurboXpressApiApplication>(*args)
+    runApplication<TurboXpressApplication>(*args)
 }
