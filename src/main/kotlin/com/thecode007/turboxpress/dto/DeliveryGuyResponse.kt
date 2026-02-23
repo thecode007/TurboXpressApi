@@ -2,15 +2,13 @@ package com.thecode007.turboxpress.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
-import java.util.*
 
-data class UserResponse(
-    val id: UUID,
+data class DeliveryGuyResponse(
+    val phoneNumber: String,
     val username: String,
     val fullName: String,
-    val phoneNumber: String,
+    val profilePictureUrl: String?,
     @get:JsonProperty("isActive")
     val isActive: Boolean,
-    val createdAt: Instant,
-    val roles: Set<String>
+    val createdAt: Instant
 )

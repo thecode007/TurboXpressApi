@@ -1,11 +1,9 @@
 package com.thecode007.turboxpress.controller
 
-import com.thecode007.turboxpress.dto.BaseResponse
-import com.thecode007.turboxpress.dto.ImpersonateResponse
-import com.thecode007.turboxpress.dto.PageResponse
-import com.thecode007.turboxpress.dto.UserResponse
+import com.thecode007.turboxpress.dto.*
 import com.thecode007.turboxpress.security.decorator.PermissionDecorator
 import com.thecode007.turboxpress.service.UserService
+import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -28,6 +26,39 @@ class AdminController(
         val pageable = PageRequest.of(page, size)
         val users = userService.getAllUsers(pageable)
         return ResponseEntity.ok(BaseResponse.success("Users retrieved successfully", users))
+    }
+    
+    @GetMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun getUserById(@PathVariable id: UUID): ResponseEntity<BaseResponse<UserResponse>> {
+        val user = userService.getUserById(id)
+        return ResponseEntity.ok(BaseResponse.success("User retrieved successfully", user))
+    }
+    
+    @PostMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun createUser(
+        @Valid @RequestBody request: CreateUserRequest
+    ): ResponseEntity<BaseResponse<UserResponse>> {
+        val user = userService.createUser(request)
+        return ResponseEntity.ok(BaseResponse.success("User created successfully", user))
+    }
+    
+    @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun updateUser(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: UpdateUserRequest
+    ): ResponseEntity<BaseResponse<UserResponse>> {
+        val user = userService.updateUser(id, request)
+        return ResponseEntity.ok(BaseResponse.success("User updated successfully", user))
+    }
+    
+    @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun deleteUser(@PathVariable id: UUID): ResponseEntity<BaseResponse<Nothing>> {
+        userService.deleteUser(id)
+        return ResponseEntity.ok(BaseResponse.success("User deleted successfully", null))
     }
 
     @PostMapping("/impersonate/{id}")

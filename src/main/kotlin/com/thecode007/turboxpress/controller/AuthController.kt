@@ -19,4 +19,9 @@ class AuthController(
         val response = authService.login(request)
         return ResponseEntity.ok(BaseResponse.success("Login successful", response))
     }
+
+    @PostMapping("/logout")
+    fun logout(): ResponseEntity<BaseResponse<Nothing>> {
+        return ResponseEntity.ok(BaseResponse.success("Logout successful", null))
+    }
 }

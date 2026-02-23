@@ -27,6 +27,9 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	
+	// Spatial
+	implementation("org.hibernate.orm:hibernate-spatial")
+	
 	// Database
 	runtimeOnly("com.mysql:mysql-connector-j")
 	
