@@ -1,9 +1,14 @@
 package com.thecode007.turboxpress.dto
 
+import java.math.BigDecimal
+
 data class UpdateRestaurantRequest(
     val name: String? = null,
     val logoUrl: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val ownerPhoneNumber: String? = null
+    val ownerPhoneNumber: String? = null,
+    val monthlySubFee: Double? = null,
+    val commissionRate: Double? = null,
+    val dailySubscriptionFee: BigDecimal? = null
 )

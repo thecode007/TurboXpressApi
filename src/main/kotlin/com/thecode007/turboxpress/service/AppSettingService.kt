@@ -1,0 +1,43 @@
+package com.thecode007.turboxpress.service
+
+import com.thecode007.turboxpress.dto.AppSettingResponse
+import com.thecode007.turboxpress.dto.UpdateAppSettingRequest
+import com.thecode007.turboxpress.entity.AppSetting
+import com.thecode007.turboxpress.repository.AppSettingRepository
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
+@Service
+class AppSettingService(
+    private val appSettingRepository: AppSettingRepository
+) {
+
+    @Transactional
+    fun getSettings(): AppSettingResponse {
+        val setting = appSettingRepository.findById(1L).orElseGet {
+            appSettingRepository.save(AppSetting(id = 1L))
+        }
+        return AppSettingResponse(
+            deliveryProfitPercent = setting.deliveryProfitPercent,
+            restaurantSubscriptionFee = setting.restaurantSubscriptionFee,
+            driverSubscriptionFee = setting.driverSubscriptionFee
+        )
+    }
+
+    @Transactional
+    fun updateSettings(request: UpdateAppSettingRequest): AppSettingResponse {
+        val setting = appSettingRepository.findById(1L).orElseGet {
+            AppSetting(id = 1L)
+        }
+        setting.deliveryProfitPercent = request.deliveryProfitPercent
+        setting.restaurantSubscriptionFee = request.restaurantSubscriptionFee
+        setting.driverSubscriptionFee = request.driverSubscriptionFee
+        
+        val saved = appSettingRepository.save(setting)
+        return AppSettingResponse(
+            deliveryProfitPercent = saved.deliveryProfitPercent,
+            restaurantSubscriptionFee = saved.restaurantSubscriptionFee,
+            driverSubscriptionFee = saved.driverSubscriptionFee
+        )
+    }
+}

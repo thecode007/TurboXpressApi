@@ -1,14 +1,7 @@
--- Disable foreign key checks to allow dropping tables in any order
-SET FOREIGN_KEY_CHECKS=0;
-
--- Drop existing tables if they exist
-DROP TABLE IF EXISTS user_roles;
-DROP TABLE IF EXISTS roles;
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS delivery_guys;
-DROP TABLE IF EXISTS owners;
-
-SET FOREIGN_KEY_CHECKS=1;
+-- Schema initialization script
+-- NOTE: This script uses IF NOT EXISTS on all CREATE TABLE statements
+-- so it is safe to run multiple times without losing data.
+-- To fully reset the schema, manually drop the tables in your DB client first.
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
@@ -83,6 +76,9 @@ CREATE TABLE IF NOT EXISTS delivery_guys (
     password_hash VARCHAR(255) NOT NULL,
     profile_picture_url VARCHAR(500),
     is_active BOOLEAN DEFAULT TRUE,
+    monthly_sub_fee DOUBLE NOT NULL DEFAULT 0.0,
+    billing_cycle VARCHAR(20) NOT NULL DEFAULT 'MONTHLY',
+    next_billing_date DATE NOT NULL DEFAULT '2026-05-08',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -115,6 +111,9 @@ CREATE TABLE IF NOT EXISTS restaurants (
     logo_url VARCHAR(500),
     location POINT NOT NULL,
     owner_id VARCHAR(20) NOT NULL,
+    monthly_sub_fee DOUBLE NOT NULL DEFAULT 0.0,
+    commission_rate DOUBLE NOT NULL DEFAULT 0.0,
+    next_billing_date DATE NOT NULL,
     FOREIGN KEY (owner_id) REFERENCES owners(phone_number) ON DELETE CASCADE
 );
 
@@ -133,4 +132,31 @@ CREATE TABLE IF NOT EXISTS restaurant_item_photos (
     item_id BIGINT NOT NULL,
     photo_url VARCHAR(500) NOT NULL,
     FOREIGN KEY (item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
+);
+
+-- Create orders table
+CREATE TABLE IF NOT EXISTS orders (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    restaurant_id BIGINT NOT NULL,
+    driver_phone_number VARCHAR(20),
+    status VARCHAR(50) NOT NULL,
+    total_amount DOUBLE NOT NULL,
+    platform_commission_amount DOUBLE NOT NULL DEFAULT 0.0,
+    is_settled BOOLEAN NOT NULL DEFAULT FALSE,
+    delivery_fee DOUBLE NOT NULL DEFAULT 0.0,
+    is_settled_driver BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (driver_phone_number) REFERENCES delivery_guys(phone_number) ON DELETE SET NULL
+);
+
+-- Create order_items table
+CREATE TABLE IF NOT EXISTS order_items (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    menu_item_id BIGINT NOT NULL,
+    quantity INT NOT NULL,
+    price_at_order DOUBLE NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (menu_item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
 );

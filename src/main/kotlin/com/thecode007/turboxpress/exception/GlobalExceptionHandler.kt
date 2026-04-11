@@ -16,6 +16,29 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice
 class GlobalExceptionHandler {
 
+    @ExceptionHandler(ResourceNotFoundException::class)
+    fun handleResourceNotFound(
+        ex: ResourceNotFoundException,
+        request: HttpServletRequest
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        val response = BaseResponse.notFound<Nothing>(
+            message = ex.message ?: "Resource not found"
+        )
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response)
+    }
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgument(
+        ex: IllegalArgumentException,
+        request: HttpServletRequest
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        val response = BaseResponse.error<Nothing>(
+            message = ex.message ?: "Invalid request argument",
+            code = "BAD_REQUEST"
+        )
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response)
+    }
+
     @ExceptionHandler(InvalidCredentialsException::class)
     fun handleInvalidCredentials(
         ex: InvalidCredentialsException,

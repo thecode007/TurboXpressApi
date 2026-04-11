@@ -2,6 +2,7 @@ package com.thecode007.turboxpress.dto
 
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import java.math.BigDecimal
 
 data class CreateRestaurantRequest(
     @field:NotBlank(message = "Name is required")
@@ -16,5 +17,9 @@ data class CreateRestaurantRequest(
     val longitude: Double,
 
     @field:NotBlank(message = "Owner phone number is required")
-    val ownerPhoneNumber: String
+    val ownerPhoneNumber: String,
+
+    val monthlySubFee: Double = 0.0,
+    val commissionRate: Double = 0.0,
+    val dailySubscriptionFee: BigDecimal? = null
 )

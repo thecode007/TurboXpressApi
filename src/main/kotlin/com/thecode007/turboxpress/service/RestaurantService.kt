@@ -10,6 +10,7 @@ import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
 
 @Service
 class RestaurantService(
@@ -43,7 +44,9 @@ class RestaurantService(
             name = request.name,
             logoUrl = request.logoUrl,
             location = location,
-            owner = owner
+            owner = owner,
+            monthlySubFee = request.monthlySubFee,
+            commissionRate = request.commissionRate
         )
 
         return RestaurantResponse.from(restaurantRepository.save(restaurant))
@@ -70,6 +73,9 @@ class RestaurantService(
                 .orElseThrow { IllegalArgumentException("Owner not found with phone number: $it") }
             restaurant.owner = owner
         }
+
+        request.monthlySubFee?.let { restaurant.monthlySubFee = it }
+        request.commissionRate?.let { restaurant.commissionRate = it }
 
         return RestaurantResponse.from(restaurantRepository.save(restaurant))
     }
