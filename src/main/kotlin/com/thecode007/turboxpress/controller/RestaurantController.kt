@@ -23,6 +23,12 @@ class RestaurantController(
     @GetMapping("/{id}")
     fun getRestaurantById(@PathVariable id: Long): ResponseEntity<BaseResponse<RestaurantResponse>> {
         val restaurant = restaurantService.getRestaurantById(id)
+            return ResponseEntity.ok(BaseResponse.success("Restaurant retrieved successfully", restaurant))
+    }
+
+    @GetMapping("/my")
+    fun getMyRestaurant(@org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator): ResponseEntity<BaseResponse<RestaurantResponse>> {
+        val restaurant = restaurantService.getRestaurantByOwner(principal.username)
         return ResponseEntity.ok(BaseResponse.success("Restaurant retrieved successfully", restaurant))
     }
 
@@ -55,7 +61,28 @@ class RestaurantController(
         val item = restaurantItemService.addItemToRestaurant(id, request)
         return ResponseEntity.ok(BaseResponse.success("Item added to restaurant successfully", item))
     }
+}
 
+@RestController
+@RequestMapping("/api/merchant/restaurants")
+class MerchantRestaurantController(
+    private val restaurantService: RestaurantService,
+    private val restaurantItemService: RestaurantItemService
+) {
+    @GetMapping("/my")
+    fun getMyRestaurant(@org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator): ResponseEntity<BaseResponse<RestaurantResponse>> {
+        val restaurant = restaurantService.getRestaurantByOwner(principal.username)
+        return ResponseEntity.ok(BaseResponse.success("Restaurant retrieved successfully", restaurant))
+    }
+
+    @PostMapping("/my/items")
+    fun addItemToMyRestaurant(
+        @org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator,
+        @Valid @RequestBody request: CreateRestaurantItemRequest
+    ): ResponseEntity<BaseResponse<RestaurantItemResponse>> {
+        val item = restaurantItemService.addItemToRestaurantByOwner(principal.username, request)
+        return ResponseEntity.ok(BaseResponse.success("Item added to restaurant successfully", item))
+    }
     @PutMapping("/items/{itemId}")
     fun updateItem(
         @PathVariable itemId: Long,

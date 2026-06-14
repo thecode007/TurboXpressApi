@@ -1,5 +1,6 @@
 package com.thecode007.turboxpress.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.thecode007.turboxpress.entity.RestaurantItem
 
 data class RestaurantItemResponse(
@@ -7,6 +8,9 @@ data class RestaurantItemResponse(
     val title: String,
     val description: String?,
     val price: Double,
+    val category: String?,
+    @get:JsonProperty("isAvailable")
+    val isAvailable: Boolean,
     val photoUrls: List<String>
 ) {
     companion object {
@@ -16,6 +20,8 @@ data class RestaurantItemResponse(
                 title = item.title,
                 description = item.description,
                 price = item.price,
+                category = item.category,
+                isAvailable = item.isAvailable,
                 photoUrls = item.photoUrls
             )
         }

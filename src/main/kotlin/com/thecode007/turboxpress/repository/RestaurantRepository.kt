@@ -11,4 +11,5 @@ import org.springframework.transaction.annotation.Transactional
 interface RestaurantRepository : JpaRepository<Restaurant, Long> {
     fun existsByName(name: String): Boolean
     fun existsByNameAndIdNot(name: String, id: Long): Boolean
+    fun findFirstByOwnerPhoneNumber(phoneNumber: String): java.util.Optional<Restaurant>
 }

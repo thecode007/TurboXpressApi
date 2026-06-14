@@ -1,4 +1,4 @@
-package com.thecode007.turboxpress.security
+﻿package com.thecode007.turboxpress.security
 
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -9,6 +9,19 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
+/**
+ * JWT Authentication Filter - runs once per request and populates the SecurityContext.
+ *
+ * Role-scoping behaviour:
+ * - If the JWT contains an [activeRole] claim (Profile Partitioning flow), the filter
+ *   calls [CustomUserDetailsService.loadUserByUsernameAndRole] to build a principal
+ *   carrying ONLY that role's authorities. This is the first gate of scoping.
+ * - If no [activeRole] is present (legacy admin-panel token), the filter falls back
+ *   to [CustomUserDetailsService.loadUserByUsername] which loads all roles (unchanged behavior).
+ *
+ * The second gate - validating that the requested URL path matches the activeRole -
+ * is enforced by [RoleScopeFilter] which runs after this filter.
+ */
 @Component
 class JwtAuthenticationFilter(
     private val jwtService: JwtService,
@@ -25,7 +38,14 @@ class JwtAuthenticationFilter(
 
             if (jwt != null && jwtService.validateToken(jwt)) {
                 val phoneNumber = jwtService.extractUsername(jwt)
-                val userDetails = userDetailsService.loadUserByUsername(phoneNumber)
+                val activeRole = jwtService.extractActiveRole(jwt)
+
+                // Load a principal scoped to only the declared role (or all roles for legacy tokens)
+                val userDetails = if (activeRole != null) {
+                    userDetailsService.loadUserByUsernameAndRole(phoneNumber, activeRole)
+                } else {
+                    userDetailsService.loadUserByUsername(phoneNumber)
+                }
 
                 if (jwtService.validateToken(jwt, userDetails)) {
                     val authentication = UsernamePasswordAuthenticationToken(
@@ -37,7 +57,7 @@ class JwtAuthenticationFilter(
 
                     if (jwtService.isImpersonationToken(jwt)) {
                         val adminId = jwtService.extractAdminId(jwt)
-                        logger.info("Impersonation token detected. Admin: $adminId, Target User: ${jwtService.extractUserId(jwt)}")
+                        logger.info("Impersonation token: Admin=$adminId, Target=${jwtService.extractUserId(jwt)}")
                     }
 
                     SecurityContextHolder.getContext().authentication = authentication

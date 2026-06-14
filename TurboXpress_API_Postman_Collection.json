@@ -1,0 +1,264 @@
+{
+  "info": {
+    "name": "TurboXpress API",
+    "description": "Generated Postman Collection for TurboXpress APIs based on existing Spring Boot controllers.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Basic Login",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+1234567890\",\n  \"password\": \"yourpassword\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "login" ] }
+          }
+        },
+        {
+          "name": "Basic Logout",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "logout" ] }
+          }
+        },
+        {
+          "name": "Firebase Login",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firebaseToken\": \"YOUR_FIREBASE_ID_TOKEN\",\n  \"targetRole\": \"CUSTOMER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/firebase/login", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "firebase", "login" ] }
+          }
+        },
+        {
+          "name": "Verify Firebase Token",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firebaseIdToken\": \"YOUR_FIREBASE_ID_TOKEN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/verify-firebase-token", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "verify-firebase-token" ] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Restaurants",
+      "item": [
+        {
+          "name": "Get All Restaurants",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/restaurants", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants" ] } }
+        },
+        {
+          "name": "Get Restaurant by ID",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/restaurants/:id", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", ":id" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Create Restaurant",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/restaurants", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants" ] } }
+        },
+        {
+          "name": "Update Restaurant",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/api/restaurants/:id", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", ":id" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Delete Restaurant",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/restaurants/:id", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", ":id" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Add Restaurant Item",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/restaurants/:id/items", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", ":id", "items" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Update Restaurant Item",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/api/restaurants/items/:itemId", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", "items", ":itemId" ], "variable": [ { "key": "itemId", "value": "1" } ] } }
+        },
+        {
+          "name": "Delete Restaurant Item",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/restaurants/items/:itemId", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", "items", ":itemId" ], "variable": [ { "key": "itemId", "value": "1" } ] } }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Get All Orders",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/orders", "host": [ "{{baseUrl}}" ], "path": [ "api", "orders" ] } }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/orders/:id", "host": [ "{{baseUrl}}" ], "path": [ "api", "orders", ":id" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Create Order",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/orders", "host": [ "{{baseUrl}}" ], "path": [ "api", "orders" ] } }
+        },
+        {
+          "name": "Assign Driver to Order",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/api/orders/:id/assign-driver", "host": [ "{{baseUrl}}" ], "path": [ "api", "orders", ":id", "assign-driver" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Update Order Status",
+          "request": { "method": "PATCH", "url": { "raw": "{{baseUrl}}/api/orders/:id/status", "host": [ "{{baseUrl}}" ], "path": [ "api", "orders", ":id", "status" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Delivery Zones",
+      "item": [
+        {
+          "name": "Get All Delivery Zones",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/delivery-zones", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-zones" ] } }
+        },
+        {
+          "name": "Create Delivery Zone",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/admin/delivery-zones", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-zones" ] } }
+        },
+        {
+          "name": "Update Delivery Zone",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/api/admin/delivery-zones/:id", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-zones", ":id" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Delete Delivery Zone",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/admin/delivery-zones/:id", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-zones", ":id" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Owners",
+      "item": [
+        {
+          "name": "Get All Owners",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/owners", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "owners" ] } }
+        },
+        {
+          "name": "Get Owner by Phone",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/owners/:phoneNumber", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "owners", ":phoneNumber" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        },
+        {
+          "name": "Create Owner",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/admin/owners", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "owners" ] } }
+        },
+        {
+          "name": "Update Owner",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/api/admin/owners/:phoneNumber", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "owners", ":phoneNumber" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        },
+        {
+          "name": "Delete Owner",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/admin/owners/:phoneNumber", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "owners", ":phoneNumber" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Delivery Guys",
+      "item": [
+        {
+          "name": "Get All Delivery Guys",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/delivery-guys", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-guys" ] } }
+        },
+        {
+          "name": "Get Delivery Guy by Phone",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/admin/delivery-guys/:phoneNumber", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-guys", ":phoneNumber" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        },
+        {
+          "name": "Create Delivery Guy",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/admin/delivery-guys", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-guys" ] } }
+        },
+        {
+          "name": "Update Delivery Guy",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/api/admin/delivery-guys/:phoneNumber", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-guys", ":phoneNumber" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        },
+        {
+          "name": "Delete Delivery Guy",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/admin/delivery-guys/:phoneNumber", "host": [ "{{baseUrl}}" ], "path": [ "api", "admin", "delivery-guys", ":phoneNumber" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        }
+      ]
+    },
+    {
+      "name": "Finance",
+      "item": [
+        {
+          "name": "Get Restaurant Finance",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/restaurants/:id/finance", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", ":id", "finance" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Settle Restaurant Finance",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/restaurants/:id/settle", "host": [ "{{baseUrl}}" ], "path": [ "api", "restaurants", ":id", "settle" ], "variable": [ { "key": "id", "value": "1" } ] } }
+        },
+        {
+          "name": "Get Delivery Guy Finance",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/delivery-guys/:phoneNumber/finance", "host": [ "{{baseUrl}}" ], "path": [ "api", "delivery-guys", ":phoneNumber", "finance" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        },
+        {
+          "name": "Settle Delivery Guy Finance",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/delivery-guys/:phoneNumber/settle", "host": [ "{{baseUrl}}" ], "path": [ "api", "delivery-guys", ":phoneNumber", "settle" ], "variable": [ { "key": "phoneNumber", "value": "1234567890" } ] } }
+        }
+      ]
+    },
+    {
+      "name": "Media",
+      "item": [
+        {
+          "name": "Upload Media",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/media/upload", "host": [ "{{baseUrl}}" ], "path": [ "api", "media", "upload" ] } }
+        },
+        {
+          "name": "Get Profile Image",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/media/profiles/:filename", "host": [ "{{baseUrl}}" ], "path": [ "api", "media", "profiles", ":filename" ], "variable": [ { "key": "filename", "value": "image.png" } ] } }
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "Get App Settings",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/settings", "host": [ "{{baseUrl}}" ], "path": [ "api", "settings" ] } }
+        }
+      ]
+    },
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/health", "host": [ "{{baseUrl}}" ], "path": [ "api", "health" ] } }
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,5 @@ data class CreateRestaurantRequest(
     val ownerPhoneNumber: String,
 
     val monthlySubFee: Double = 0.0,
-    val commissionRate: Double = 0.0,
-    val dailySubscriptionFee: BigDecimal? = null
+    val commissionRate: Double = 0.0
 )

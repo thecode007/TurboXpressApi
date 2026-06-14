@@ -18,6 +18,12 @@ class RestaurantItem(
     @Column(nullable = false)
     var price: Double,
 
+    @Column(name = "category")
+    var category: String? = null,
+
+    @Column(name = "is_available", nullable = false)
+    var isAvailable: Boolean = true,
+
     @ElementCollection
     @CollectionTable(name = "restaurant_item_photos", joinColumns = [JoinColumn(name = "item_id")])
     @Column(name = "photo_url", length = 500)

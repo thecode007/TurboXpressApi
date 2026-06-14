@@ -39,3 +39,4 @@ out/
 ### Kotlin ###
 .kotlin
 /uploads/
+src/main/resources/firebase-service-account.json

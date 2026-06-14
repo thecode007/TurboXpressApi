@@ -124,8 +124,9 @@ class GlobalExceptionHandler {
         ex: Exception,
         request: HttpServletRequest
     ): ResponseEntity<BaseResponse<Nothing>> {
+        val stackTrace = ex.stackTraceToString()
         val response = BaseResponse.error<Nothing>(
-            message = ex.message ?: "An unexpected error occurred",
+            message = "Error: ${ex.message} \n\n StackTrace: $stackTrace",
             code = "INTERNAL_SERVER_ERROR"
         )
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response)

@@ -48,7 +48,7 @@ class MediaService {
         Files.copy(file.inputStream, targetLocation, StandardCopyOption.REPLACE_EXISTING)
         
         // Return URL path
-        return "/uploads/profiles/$uniqueFilename"
+        return "/api/media/profiles/$uniqueFilename"
     }
     
     fun deleteProfilePicture(url: String) {

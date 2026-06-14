@@ -24,7 +24,27 @@ class RestaurantItemService(
             title = request.title,
             description = request.description,
             price = request.price,
-            photoUrls = request.photoUrls.toMutableList(),
+            category = request.category,
+            isAvailable = request.isAvailable,
+            photoUrls = request.photoUrls?.toMutableList() ?: mutableListOf(),
+            restaurant = restaurant
+        )
+
+        return RestaurantItemResponse.from(restaurantItemRepository.save(item))
+    }
+
+    @Transactional
+    fun addItemToRestaurantByOwner(ownerPhoneNumber: String, request: CreateRestaurantItemRequest): RestaurantItemResponse {
+        val restaurant = restaurantRepository.findFirstByOwnerPhoneNumber(ownerPhoneNumber)
+            .orElseThrow { IllegalArgumentException("Restaurant not found for owner: $ownerPhoneNumber") }
+
+        val item = RestaurantItem(
+            title = request.title,
+            description = request.description,
+            price = request.price,
+            category = request.category,
+            isAvailable = request.isAvailable,
+            photoUrls = request.photoUrls?.toMutableList() ?: mutableListOf(),
             restaurant = restaurant
         )
 
@@ -39,6 +59,8 @@ class RestaurantItemService(
         request.title?.let { item.title = it }
         request.description?.let { item.description = it }
         request.price?.let { item.price = it }
+        request.category?.let { item.category = it }
+        request.isAvailable?.let { item.isAvailable = it }
         request.photoUrls?.let { item.photoUrls = it.toMutableList() }
 
         return RestaurantItemResponse.from(restaurantItemRepository.save(item))

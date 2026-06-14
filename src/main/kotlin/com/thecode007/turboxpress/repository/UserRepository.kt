@@ -11,5 +11,6 @@ import java.util.*
 interface UserRepository : JpaRepository<User, UUID> {
     fun findByPhoneNumber(phoneNumber: String): Optional<User>
     fun findByUsername(username: String): Optional<User>
+    fun findByFirebaseUid(firebaseUid: String): Optional<User>
     override fun findAll(pageable: Pageable): Page<User>
 }

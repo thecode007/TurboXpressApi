@@ -108,7 +108,7 @@ class UserService(
     private fun User.toUserResponse(): UserResponse {
         return UserResponse(
             id = this.id!!,
-            username = this.username,
+            username = this.username ?: this.phoneNumber,
             fullName = this.fullName,
             phoneNumber = this.phoneNumber,
             isActive = this.isActive,

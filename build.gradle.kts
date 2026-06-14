@@ -21,6 +21,9 @@ repositories {
 }
 
 dependencies {
+	// OpenAPI
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:2.8.5")
+	
 	// Spring Boot Starters
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("org.springframework.boot:spring-boot-starter-security")
@@ -46,8 +49,12 @@ dependencies {
 	// Testing
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.security:spring-security-test")
+	implementation("org.springframework.security:spring-security-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	
+	// Firebase Admin
+	implementation("com.google.firebase:firebase-admin:9.4.2")
 }
 
 kotlin {

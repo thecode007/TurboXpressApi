@@ -2,14 +2,16 @@
 -- NOTE: This script uses IF NOT EXISTS on all CREATE TABLE statements
 -- so it is safe to run multiple times without losing data.
 -- To fully reset the schema, manually drop the tables in your DB client first.
+-- Seed data (roles, admin user, etc.) is in data.sql which runs after this file.
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(36) PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
+    username VARCHAR(50) UNIQUE,
     full_name VARCHAR(255) NOT NULL,
     phone_number VARCHAR(20) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
+    firebase_uid VARCHAR(128) UNIQUE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -28,45 +30,6 @@ CREATE TABLE IF NOT EXISTS user_roles (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 );
-
--- Insert initial roles
--- Explicitly specific IDs to ensure they match user_roles inserts
-INSERT INTO roles (id, role_name) VALUES (1, 'CUSTOMER') ON DUPLICATE KEY UPDATE role_name=role_name;
-INSERT INTO roles (id, role_name) VALUES (2, 'COURIER') ON DUPLICATE KEY UPDATE role_name=role_name;
-INSERT INTO roles (id, role_name) VALUES (3, 'MERCHANT') ON DUPLICATE KEY UPDATE role_name=role_name;
-INSERT INTO roles (id, role_name) VALUES (4, 'ADMIN') ON DUPLICATE KEY UPDATE role_name=role_name;
-
--- Insert sample users
--- Password for 'password123': $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
--- Password for 'admin123': $2a$10$oTU1JKYkyCQSfOS0Rm0XZuaFYgb8bWwgJlbdjsOH/fSLlp6EFbmgy
--- Insert sample users
--- Password for 'password123': $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
--- Password for 'admin123': $2a$10$oTU1JKYkyCQSfOS0Rm0XZuaFYgb8bWwgJlbdjsOH/fSLlp6EFbmgy
-INSERT INTO users (id, username, full_name, phone_number, password_hash, is_active) 
-VALUES 
-    ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'johndoe', 'John Doe', '+1234567890', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', true),
-    ('b1ffcd99-9c0b-4ef8-bb6d-6bb9bd380a22', 'janesmith', 'Jane Smith', '+1234567891', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', true),
-    ('c2eece99-9c0b-4ef8-bb6d-6bb9bd380a33', 'bobjohnson', 'Bob Johnson', '+1234567892', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', true),
-    ('d3eede99-9c0b-4ef8-bb6d-6bb9bd380a44', 'admin', 'System Admin', '+1234567893', '$2a$10$oTU1JKYkyCQSfOS0Rm0XZuaFYgb8bWwgJlbdjsOH/fSLlp6EFbmgy', true)
-ON DUPLICATE KEY UPDATE 
-    id=VALUES(id),
-    full_name=VALUES(full_name),
-    password_hash=VALUES(password_hash);
-
--- Assign roles to users
-DELETE FROM user_roles; -- Clear roles to reassign
-
--- John Doe is a CUSTOMER
-INSERT INTO user_roles (user_id, role_id) VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 1);
-
--- Jane Smith is a COURIER
-INSERT INTO user_roles (user_id, role_id) VALUES ('b1ffcd99-9c0b-4ef8-bb6d-6bb9bd380a22', 2);
-
--- Bob Johnson is a MERCHANT
-INSERT INTO user_roles (user_id, role_id) VALUES ('c2eece99-9c0b-4ef8-bb6d-6bb9bd380a33', 3);
-
--- Alice Admin is an ADMIN
-INSERT INTO user_roles (user_id, role_id) VALUES ('d3eede99-9c0b-4ef8-bb6d-6bb9bd380a44', 4);
 
 -- Create delivery_guys table
 CREATE TABLE IF NOT EXISTS delivery_guys (
@@ -99,9 +62,6 @@ CREATE TABLE IF NOT EXISTS delivery_zones (
     base_fee DOUBLE NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     polygon POLYGON NOT NULL
-    -- SRID 4326 is common for lat/lng, but MySQL defaults to SRID 0 if not specified.
-    -- Hibernate Spatial might expect SRID 0 or 4326 depending on config.
-    -- For simplicity with JTS default factory, we'll use default SRID.
 );
 
 -- Create restaurants table
@@ -159,4 +119,72 @@ CREATE TABLE IF NOT EXISTS order_items (
     price_at_order DOUBLE NOT NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (menu_item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- Profile Partitioning Pattern — Profile Tables
+-- Each table is linked 1:1 to users via user_id FK.
+-- A single user can have multiple profiles simultaneously.
+-- ============================================================
+
+-- Customer Profiles
+CREATE TABLE IF NOT EXISTS customer_profiles (
+    user_id VARCHAR(36) PRIMARY KEY,
+    display_name VARCHAR(255),
+    default_address_latitude DOUBLE,
+    default_address_longitude DOUBLE,
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    admin_note TEXT,
+    approved_by VARCHAR(36),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Driver Profiles
+CREATE TABLE IF NOT EXISTS driver_profiles (
+    user_id VARCHAR(36) PRIMARY KEY,
+    display_name VARCHAR(255),
+    id_document_url VARCHAR(500),
+    criminal_record_url VARCHAR(500),
+    license_number VARCHAR(100),
+    vehicle_type VARCHAR(50),
+    vehicle_plate VARCHAR(50),
+    is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    rating DOUBLE NOT NULL DEFAULT 0.0,
+    monthly_sub_fee DOUBLE NOT NULL DEFAULT 0.0,
+    billing_cycle VARCHAR(20) NOT NULL DEFAULT 'MONTHLY',
+    next_billing_date DATE,
+    carried_over_balance DOUBLE NOT NULL DEFAULT 0.0,
+    admin_debt_balance DECIMAL(19,4) NOT NULL DEFAULT 0.0,
+    collected_cash_balance DECIMAL(19,4) NOT NULL DEFAULT 0.0,
+    daily_rate DECIMAL(19,4) NOT NULL DEFAULT 0.0,
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    admin_note TEXT,
+    approved_by VARCHAR(36),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Owner Profiles
+CREATE TABLE IF NOT EXISTS owner_profiles (
+    user_id VARCHAR(36) PRIMARY KEY,
+    business_name VARCHAR(255),
+    profile_picture_url VARCHAR(500),
+    id_document_url VARCHAR(500),
+    criminal_record_url VARCHAR(500),
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    admin_note TEXT,
+    approved_by VARCHAR(36),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- System Admin Profiles
+CREATE TABLE IF NOT EXISTS system_admin_profiles (
+    user_id VARCHAR(36) PRIMARY KEY,
+    admin_level VARCHAR(50) NOT NULL DEFAULT 'ADMIN',
+    access_scope VARCHAR(50) NOT NULL DEFAULT 'GLOBAL',
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

@@ -31,7 +31,9 @@ class MediaController(
         val resource = UrlResource(file.toUri())
         
         return if (resource.exists() && resource.isReadable) {
+            val contentType = java.nio.file.Files.probeContentType(file) ?: "application/octet-stream"
             ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${resource.filename}\"")
                 .body(resource)
         } else {

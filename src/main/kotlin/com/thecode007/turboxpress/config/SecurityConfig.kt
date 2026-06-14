@@ -1,6 +1,7 @@
 package com.thecode007.turboxpress.config
 
 import com.thecode007.turboxpress.security.JwtAuthenticationFilter
+import com.thecode007.turboxpress.security.RoleScopeFilter
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
@@ -25,6 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @EnableMethodSecurity
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val roleScopeFilter: RoleScopeFilter,
     private val userDetailsService: UserDetailsService
 ) {
 
@@ -35,16 +37,31 @@ class SecurityConfig(
             .cors { it.configurationSource(corsConfigurationSource()) }
             .authorizeHttpRequests { auth ->
                 auth
+                    // -- Public endpoints --------------------------------------------------
                     .requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/api/media/profiles/**").permitAll()
+                    .requestMatchers("/api/health").permitAll()
+
+                    // -- Role-scoped mobile app endpoints ----------------------------------
+                    // URL-level role check is a FIRST LINE of defence.
+                    // The JWT activeRole claim is validated by RoleScopeFilter as the SECOND gate.
+                    .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
+                    .requestMatchers("/api/driver/**").hasRole("COURIER")
+                    .requestMatchers("/api/merchant/**").hasRole("MERCHANT")
+
+                    // -- Admin endpoints ---------------------------------------------------
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                    // -- Everything else requires authentication ----------------------------
                     .anyRequest().authenticated()
             }
             .sessionManagement { session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             }
             .authenticationProvider(authenticationProvider())
+            // Filter order: JwtAuthenticationFilter - RoleScopeFilter - endpoint
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterAfter(roleScopeFilter, JwtAuthenticationFilter::class.java)
 
         return http.build()
     }

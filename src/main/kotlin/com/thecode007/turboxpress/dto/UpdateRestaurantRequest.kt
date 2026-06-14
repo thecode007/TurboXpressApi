@@ -9,6 +9,5 @@ data class UpdateRestaurantRequest(
     val longitude: Double? = null,
     val ownerPhoneNumber: String? = null,
     val monthlySubFee: Double? = null,
-    val commissionRate: Double? = null,
-    val dailySubscriptionFee: BigDecimal? = null
+    val commissionRate: Double? = null
 )

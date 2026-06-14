@@ -10,7 +10,6 @@ import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
 
 @Service
 class RestaurantService(
@@ -19,13 +18,22 @@ class RestaurantService(
 ) {
     private val geometryFactory = GeometryFactory()
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getAllRestaurants(): List<RestaurantResponse> {
         return restaurantRepository.findAll().map { RestaurantResponse.from(it) }
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getRestaurantById(id: Long): RestaurantResponse {
         val restaurant = restaurantRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Restaurant not found with id: $id") }
+        return RestaurantResponse.from(restaurant)
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    fun getRestaurantByOwner(phoneNumber: String): RestaurantResponse {
+        val restaurant = restaurantRepository.findFirstByOwnerPhoneNumber(phoneNumber)
+            .orElseThrow { IllegalArgumentException("Restaurant not found for owner: $phoneNumber") }
         return RestaurantResponse.from(restaurant)
     }
 
