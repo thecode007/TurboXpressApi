@@ -21,4 +21,14 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     /** Eagerly fetches the related User for all profiles of a given status. */
     @Query("SELECT p FROM DriverProfile p JOIN FETCH p.user WHERE p.verificationStatus = :status")
     fun findAllByVerificationStatusWithUser(status: VerificationStatus): List<DriverProfile>
+
+    /** Finds the nearest idle driver using PostGIS <-> nearest-neighbor operator. */
+    @Query(value = """
+        SELECT * FROM driver_profiles d 
+        WHERE d.is_available = true 
+        AND d.current_location IS NOT NULL 
+        ORDER BY d.current_location <-> :restaurantLocation 
+        LIMIT 1
+    """, nativeQuery = true)
+    fun findNearestIdleDriver(@org.springframework.data.repository.query.Param("restaurantLocation") restaurantLocation: org.locationtech.jts.geom.Point): DriverProfile?
 }

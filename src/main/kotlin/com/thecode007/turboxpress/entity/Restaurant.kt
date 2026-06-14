@@ -17,7 +17,7 @@ class Restaurant(
     @Column(name = "logo_url", length = 500)
     var logoUrl: String? = null,
 
-    @Column(columnDefinition = "POINT", nullable = false)
+    @Column(columnDefinition = "geometry(Point, 4326)", nullable = false)
     var location: Point,
 
     @ManyToOne(fetch = FetchType.LAZY)

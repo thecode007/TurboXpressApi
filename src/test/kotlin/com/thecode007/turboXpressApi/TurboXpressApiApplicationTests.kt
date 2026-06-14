@@ -1,4 +1,4 @@
-package com.thecode007.turboXpressApi
+package com.thecode007.turboxpress
 
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest

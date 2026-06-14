@@ -101,6 +101,9 @@ data class DriverProfile(
     @Column(name = "approved_by", columnDefinition = "VARCHAR(36)")
     var approvedBy: UUID? = null,
 
+    @Column(name = "current_location", columnDefinition = "geometry(Point, 4326)")
+    var currentLocation: org.locationtech.jts.geom.Point? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant? = null

@@ -4,6 +4,8 @@
 -- To fully reset the schema, manually drop the tables in your DB client first.
 -- Seed data (roles, admin user, etc.) is in data.sql which runs after this file.
 
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(36) PRIMARY KEY,
@@ -18,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Create roles table
 CREATE TABLE IF NOT EXISTS roles (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     role_name VARCHAR(50) UNIQUE NOT NULL
 );
 
@@ -39,7 +41,7 @@ CREATE TABLE IF NOT EXISTS delivery_guys (
     password_hash VARCHAR(255) NOT NULL,
     profile_picture_url VARCHAR(500),
     is_active BOOLEAN DEFAULT TRUE,
-    monthly_sub_fee DOUBLE NOT NULL DEFAULT 0.0,
+    monthly_sub_fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     billing_cycle VARCHAR(20) NOT NULL DEFAULT 'MONTHLY',
     next_billing_date DATE NOT NULL DEFAULT '2026-05-08',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -57,32 +59,32 @@ CREATE TABLE IF NOT EXISTS owners (
 
 -- Create delivery_zones table
 CREATE TABLE IF NOT EXISTS delivery_zones (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
-    base_fee DOUBLE NOT NULL,
+    base_fee DOUBLE PRECISION NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    polygon POLYGON NOT NULL
+    polygon geometry(Polygon, 4326) NOT NULL
 );
 
 -- Create restaurants table
 CREATE TABLE IF NOT EXISTS restaurants (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     logo_url VARCHAR(500),
-    location POINT NOT NULL,
+    location geometry(Point, 4326) NOT NULL,
     owner_id VARCHAR(20) NOT NULL,
-    monthly_sub_fee DOUBLE NOT NULL DEFAULT 0.0,
-    commission_rate DOUBLE NOT NULL DEFAULT 0.0,
+    monthly_sub_fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    commission_rate DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     next_billing_date DATE NOT NULL,
     FOREIGN KEY (owner_id) REFERENCES owners(phone_number) ON DELETE CASCADE
 );
 
 -- Create restaurant_items table
 CREATE TABLE IF NOT EXISTS restaurant_items (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    price DOUBLE NOT NULL,
+    price DOUBLE PRECISION NOT NULL,
     restaurant_id BIGINT NOT NULL,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
@@ -96,14 +98,14 @@ CREATE TABLE IF NOT EXISTS restaurant_item_photos (
 
 -- Create orders table
 CREATE TABLE IF NOT EXISTS orders (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     restaurant_id BIGINT NOT NULL,
     driver_phone_number VARCHAR(20),
     status VARCHAR(50) NOT NULL,
-    total_amount DOUBLE NOT NULL,
-    platform_commission_amount DOUBLE NOT NULL DEFAULT 0.0,
+    total_amount DOUBLE PRECISION NOT NULL,
+    platform_commission_amount DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     is_settled BOOLEAN NOT NULL DEFAULT FALSE,
-    delivery_fee DOUBLE NOT NULL DEFAULT 0.0,
+    delivery_fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     is_settled_driver BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
@@ -112,11 +114,11 @@ CREATE TABLE IF NOT EXISTS orders (
 
 -- Create order_items table
 CREATE TABLE IF NOT EXISTS order_items (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     order_id BIGINT NOT NULL,
     menu_item_id BIGINT NOT NULL,
     quantity INT NOT NULL,
-    price_at_order DOUBLE NOT NULL,
+    price_at_order DOUBLE PRECISION NOT NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (menu_item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
 );
@@ -131,8 +133,8 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE TABLE IF NOT EXISTS customer_profiles (
     user_id VARCHAR(36) PRIMARY KEY,
     display_name VARCHAR(255),
-    default_address_latitude DOUBLE,
-    default_address_longitude DOUBLE,
+    default_address_latitude DOUBLE PRECISION,
+    default_address_longitude DOUBLE PRECISION,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     admin_note TEXT,
     approved_by VARCHAR(36),
@@ -150,20 +152,23 @@ CREATE TABLE IF NOT EXISTS driver_profiles (
     vehicle_type VARCHAR(50),
     vehicle_plate VARCHAR(50),
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
-    rating DOUBLE NOT NULL DEFAULT 0.0,
-    monthly_sub_fee DOUBLE NOT NULL DEFAULT 0.0,
+    rating DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    monthly_sub_fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     billing_cycle VARCHAR(20) NOT NULL DEFAULT 'MONTHLY',
     next_billing_date DATE,
-    carried_over_balance DOUBLE NOT NULL DEFAULT 0.0,
+    carried_over_balance DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     admin_debt_balance DECIMAL(19,4) NOT NULL DEFAULT 0.0,
     collected_cash_balance DECIMAL(19,4) NOT NULL DEFAULT 0.0,
     daily_rate DECIMAL(19,4) NOT NULL DEFAULT 0.0,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     admin_note TEXT,
     approved_by VARCHAR(36),
+    current_location geometry(Point, 4326),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_driver_profiles_location ON driver_profiles USING GIST(current_location);
 
 -- Owner Profiles
 CREATE TABLE IF NOT EXISTS owner_profiles (

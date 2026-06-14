@@ -19,6 +19,6 @@ class DeliveryZone(
     @Column(nullable = false)
     var isActive: Boolean = true,
 
-    @Column(columnDefinition = "POLYGON", nullable = false)
+    @Column(columnDefinition = "geometry(Polygon, 4326)", nullable = false)
     var polygon: Polygon
 )

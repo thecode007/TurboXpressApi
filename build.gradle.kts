@@ -33,8 +33,7 @@ dependencies {
 	// Spatial
 	implementation("org.hibernate.orm:hibernate-spatial")
 	
-	// Database
-	runtimeOnly("com.mysql:mysql-connector-j")
+	runtimeOnly("org.postgresql:postgresql")
 	
 	// JWT
 	implementation("io.jsonwebtoken:jjwt-api:0.12.5")
