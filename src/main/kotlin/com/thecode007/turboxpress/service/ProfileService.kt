@@ -85,6 +85,7 @@ class ProfileService(
             "MERCHANT" -> {
                 val profile = ownerProfileRepository.findById(userId).orElseThrow { Exception("Owner profile not found") }
                 profile.businessName = additionalData["restaurantName"] ?: displayName
+                profile.locationDescription = additionalData["locationDescription"]
                 
                 profilePic?.let {
                     logger.info("Uploading profile picture for merchant $userId")

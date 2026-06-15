@@ -104,7 +104,10 @@ class AdminProfileService(
                         displayName = p.displayName,
                         hasIdDocument = p.idDocumentUrl != null,
                         hasCriminalRecord = p.criminalRecordUrl != null,
-                        submittedAt = p.createdAt?.toString()
+                        submittedAt = p.createdAt?.toString(),
+                        profilePictureUrl = p.profilePictureUrl,
+                        idDocumentUrl = p.idDocumentUrl,
+                        criminalRecordUrl = p.criminalRecordUrl
                     )
                 }
             "MERCHANT" -> ownerProfileRepository
@@ -116,7 +119,11 @@ class AdminProfileService(
                         displayName = p.businessName,
                         hasIdDocument = p.idDocumentUrl != null,
                         hasCriminalRecord = p.criminalRecordUrl != null,
-                        submittedAt = p.createdAt?.toString()
+                        submittedAt = p.createdAt?.toString(),
+                        profilePictureUrl = p.profilePictureUrl,
+                        idDocumentUrl = p.idDocumentUrl,
+                        criminalRecordUrl = p.criminalRecordUrl,
+                        locationDescription = p.locationDescription
                     )
                 }
             else -> throw IllegalArgumentException("Only COURIER and MERCHANT profiles require manual approval.")
@@ -215,6 +222,7 @@ class AdminProfileService(
                     name = restaurantName,
                     logoUrl = profile.profilePictureUrl,
                     location = geometryFactory.createPoint(Coordinate(0.0, 0.0)),
+                    locationDescription = profile.locationDescription,
                     owner = owner,
                     monthlySubFee = 0.0,
                     commissionRate = 0.0

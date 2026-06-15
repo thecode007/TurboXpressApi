@@ -31,5 +31,9 @@ data class PendingProfileDto(
     val displayName: String?,
     val hasIdDocument: Boolean,
     val hasCriminalRecord: Boolean,
-    val submittedAt: String?
+    val submittedAt: String?,
+    val profilePictureUrl: String? = null,
+    val idDocumentUrl: String? = null,
+    val criminalRecordUrl: String? = null,
+    val locationDescription: String? = null
 )

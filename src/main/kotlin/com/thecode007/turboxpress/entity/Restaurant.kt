@@ -20,6 +20,9 @@ class Restaurant(
     @Column(columnDefinition = "geometry(Point, 4326)", nullable = false)
     var location: Point,
 
+    @Column(name = "location_description", length = 500)
+    var locationDescription: String? = null,
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", referencedColumnName = "phone_number", nullable = false)
     var owner: Owner,

@@ -34,6 +34,9 @@ data class OwnerProfile(
     @Column(name = "profile_picture_url", length = 500)
     var profilePictureUrl: String? = null,
 
+    @Column(name = "location_description", length = 500)
+    var locationDescription: String? = null,
+
     // --- Document URLs (nullable - enables admin override before upload) -------
 
     /** Government-issued ID scan. */
