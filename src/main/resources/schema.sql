@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS driver_profiles (
     verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     admin_note TEXT,
     approved_by VARCHAR(36),
+    status VARCHAR(20) NOT NULL DEFAULT 'IDLE',
     current_location geometry(Point, 4326),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

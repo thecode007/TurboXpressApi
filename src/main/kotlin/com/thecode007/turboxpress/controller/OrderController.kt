@@ -42,6 +42,14 @@ class OrderController(private val orderService: OrderService) {
         return ResponseEntity.ok(BaseResponse.success("Driver assigned successfully", order))
     }
 
+    @PostMapping("/{id}/auto-assign")
+    fun autoAssignDriver(
+        @PathVariable id: Long
+    ): ResponseEntity<BaseResponse<OrderResponse>> {
+        val order = orderService.autoAssignDriver(id)
+        return ResponseEntity.ok(BaseResponse.success("Nearest driver auto-assigned successfully", order))
+    }
+
     @PatchMapping("/{id}/status")
     fun updateOrderStatus(
         @PathVariable id: Long,

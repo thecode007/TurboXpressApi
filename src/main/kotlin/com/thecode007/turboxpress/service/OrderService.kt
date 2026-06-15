@@ -13,7 +13,9 @@ class OrderService(
     private val orderItemRepository: OrderItemRepository,
     private val restaurantRepository: RestaurantRepository,
     private val restaurantItemRepository: RestaurantItemRepository,
-    private val deliveryGuyRepository: DeliveryGuyRepository
+    private val deliveryGuyRepository: DeliveryGuyRepository,
+    private val driverProfileRepository: DriverProfileRepository,
+    private val userRepository: UserRepository
 ) {
 
     @Transactional
@@ -73,10 +75,41 @@ class OrderService(
             .orElseThrow { ResourceNotFoundException("Order not found with id: $orderId") }
         
         val driver = deliveryGuyRepository.findById(driverPhoneNumber)
-            .orElseThrow { ResourceNotFoundException("Driver not found with phone number: $driverPhoneNumber") }
+            .orElseThrow { ResourceNotFoundException("Driver not found with phone: $driverPhoneNumber") }
 
         order.driver = driver
         order.status = OrderStatus.ACCEPTED
+        
+        val userOpt = userRepository.findByPhoneNumber(driverPhoneNumber)
+        userOpt.ifPresent { user ->
+            user.id?.let { id ->
+                driverProfileRepository.findById(id).ifPresent { profile ->
+                    profile.status = DriverStatus.ON_DELIVERY
+                    driverProfileRepository.save(profile)
+                }
+            }
+        }
+        
+        return mapToResponse(orderRepository.save(order))
+    }
+
+    @Transactional
+    fun autoAssignDriver(orderId: Long): OrderResponse {
+        val order = orderRepository.findById(orderId)
+            .orElseThrow { ResourceNotFoundException("Order not found with id: $orderId") }
+        
+        val nearestProfile = driverProfileRepository.findNearestIdleDriver(order.restaurant.location)
+            ?: throw ResourceNotFoundException("No idle drivers available near the restaurant")
+
+        val driverPhoneNumber = nearestProfile.user.phoneNumber
+        val driver = deliveryGuyRepository.findById(driverPhoneNumber)
+            .orElseThrow { ResourceNotFoundException("Delivery guy not found for phone number: $driverPhoneNumber") }
+
+        order.driver = driver
+        order.status = OrderStatus.ACCEPTED
+        nearestProfile.status = DriverStatus.ON_DELIVERY
+        driverProfileRepository.save(nearestProfile)
+        
         return mapToResponse(orderRepository.save(order))
     }
 
@@ -86,6 +119,22 @@ class OrderService(
             .orElseThrow { ResourceNotFoundException("Order not found with id: $orderId") }
         
         order.status = status
+        
+        // If order is completed or cancelled, free up the driver
+        if (status == OrderStatus.DELIVERED || status == OrderStatus.CANCELLED) {
+            order.driver?.let { driver ->
+                val userOpt = userRepository.findByPhoneNumber(driver.phoneNumber)
+                userOpt.ifPresent { user ->
+                    user.id?.let { id ->
+                        driverProfileRepository.findById(id).ifPresent { profile ->
+                            profile.status = DriverStatus.IDLE
+                            driverProfileRepository.save(profile)
+                        }
+                    }
+                }
+            }
+        }
+        
         return mapToResponse(orderRepository.save(order))
     }
 

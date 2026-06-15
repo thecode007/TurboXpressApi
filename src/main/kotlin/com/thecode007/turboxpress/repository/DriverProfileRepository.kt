@@ -26,6 +26,7 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     @Query(value = """
         SELECT * FROM driver_profiles d 
         WHERE d.is_available = true 
+        AND d.status = 'IDLE'
         AND d.current_location IS NOT NULL 
         ORDER BY d.current_location <-> :restaurantLocation 
         LIMIT 1

@@ -104,6 +104,10 @@ data class DriverProfile(
     @Column(name = "current_location", columnDefinition = "geometry(Point, 4326)")
     var currentLocation: org.locationtech.jts.geom.Point? = null,
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    var status: DriverStatus = DriverStatus.IDLE,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant? = null
@@ -125,4 +129,10 @@ data class DriverProfile(
         userId = UUID.randomUUID(),
         user = User(fullName = "", phoneNumber = "")
     )
+}
+
+enum class DriverStatus {
+    IDLE,
+    ON_DELIVERY,
+    OFFLINE
 }
