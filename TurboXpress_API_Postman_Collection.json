@@ -259,6 +259,51 @@
           "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/health", "host": [ "{{baseUrl}}" ], "path": [ "api", "health" ] } }
         }
       ]
+    },
+    {
+      "name": "Pricing",
+      "item": [
+        {
+          "name": "Calculate Delivery Price",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pricing/calculate?driverLat=40.7128&driverLon=-74.0060&customerLat=40.7580&customerLon=-73.9855&pricePerKm=1.5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pricing",
+                "calculate"
+              ],
+              "query": [
+                {
+                  "key": "driverLat",
+                  "value": "40.7128"
+                },
+                {
+                  "key": "driverLon",
+                  "value": "-74.0060"
+                },
+                {
+                  "key": "customerLat",
+                  "value": "40.7580"
+                },
+                {
+                  "key": "customerLon",
+                  "value": "-73.9855"
+                },
+                {
+                  "key": "pricePerKm",
+                  "value": "1.5"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

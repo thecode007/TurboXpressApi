@@ -54,6 +54,9 @@ dependencies {
 	
 	// Firebase Admin
 	implementation("com.google.firebase:firebase-admin:9.4.2")
+
+	// GraphHopper
+	implementation("com.graphhopper:graphhopper-core:11.0")
 }
 
 kotlin {
