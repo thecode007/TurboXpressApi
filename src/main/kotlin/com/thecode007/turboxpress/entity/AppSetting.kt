@@ -15,5 +15,8 @@ data class AppSetting(
     var restaurantSubscriptionFee: Double = 0.0,
 
     @Column(nullable = false)
-    var driverSubscriptionFee: Double = 0.0
+    var driverSubscriptionFee: Double = 0.0,
+
+    @Column(nullable = false)
+    var pricePerKm: Double = 1.5 // Default value
 )

@@ -8,10 +8,6 @@ data class CreateDeliveryZoneRequest(
     @field:NotBlank(message = "Name is required")
     val name: String,
 
-    @field:NotNull(message = "Base fee is required")
-    @field:Positive(message = "Base fee must be positive")
-    val baseFee: Double,
-
     @field:NotBlank(message = "WKT Polygon is required")
     val wktPolygon: String,
 

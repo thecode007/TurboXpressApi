@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service
 class DeliveryZoneService(
     private val deliveryZoneRepository: DeliveryZoneRepository
 ) {
-    private val geometryFactory = GeometryFactory()
+    private val geometryFactory = GeometryFactory(org.locationtech.jts.geom.PrecisionModel(), 4326)
 
     fun isLocationInZone(lat: Double, lng: Double): Boolean {
         val point = geometryFactory.createPoint(Coordinate(lng, lat))
@@ -34,7 +34,6 @@ class DeliveryZoneService(
         val polygon = parseWkt(request.wktPolygon)
         val zone = DeliveryZone(
             name = request.name,
-            baseFee = request.baseFee,
             isActive = request.isActive,
             polygon = polygon
         )
@@ -51,7 +50,6 @@ class DeliveryZoneService(
         }
 
         request.name?.let { zone.name = it }
-        request.baseFee?.let { zone.baseFee = it }
         request.isActive?.let { zone.isActive = it }
         request.wktPolygon?.let { zone.polygon = parseWkt(it) }
 

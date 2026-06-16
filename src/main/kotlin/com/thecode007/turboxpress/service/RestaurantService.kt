@@ -16,7 +16,7 @@ class RestaurantService(
     private val restaurantRepository: RestaurantRepository,
     private val ownerRepository: OwnerRepository
 ) {
-    private val geometryFactory = GeometryFactory()
+    private val geometryFactory = GeometryFactory(org.locationtech.jts.geom.PrecisionModel(), 4326)
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getAllRestaurants(): List<RestaurantResponse> {

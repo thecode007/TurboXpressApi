@@ -20,7 +20,8 @@ class AppSettingService(
         return AppSettingResponse(
             deliveryProfitPercent = setting.deliveryProfitPercent,
             restaurantSubscriptionFee = setting.restaurantSubscriptionFee,
-            driverSubscriptionFee = setting.driverSubscriptionFee
+            driverSubscriptionFee = setting.driverSubscriptionFee,
+            pricePerKm = setting.pricePerKm
         )
     }
 
@@ -32,12 +33,14 @@ class AppSettingService(
         setting.deliveryProfitPercent = request.deliveryProfitPercent
         setting.restaurantSubscriptionFee = request.restaurantSubscriptionFee
         setting.driverSubscriptionFee = request.driverSubscriptionFee
+        setting.pricePerKm = request.pricePerKm
         
         val saved = appSettingRepository.save(setting)
         return AppSettingResponse(
             deliveryProfitPercent = saved.deliveryProfitPercent,
             restaurantSubscriptionFee = saved.restaurantSubscriptionFee,
-            driverSubscriptionFee = saved.driverSubscriptionFee
+            driverSubscriptionFee = saved.driverSubscriptionFee,
+            pricePerKm = saved.pricePerKm
         )
     }
 }

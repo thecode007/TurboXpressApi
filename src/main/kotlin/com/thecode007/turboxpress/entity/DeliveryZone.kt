@@ -14,9 +14,6 @@ class DeliveryZone(
     var name: String,
 
     @Column(nullable = false)
-    var baseFee: Double,
-
-    @Column(nullable = false)
     var isActive: Boolean = true,
 
     @Column(columnDefinition = "geometry(Polygon, 4326)", nullable = false)

@@ -61,7 +61,6 @@ CREATE TABLE IF NOT EXISTS owners (
 CREATE TABLE IF NOT EXISTS delivery_zones (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
-    base_fee DOUBLE PRECISION NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     polygon geometry(Polygon, 4326) NOT NULL
 );
