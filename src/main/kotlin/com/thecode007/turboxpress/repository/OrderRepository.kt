@@ -8,4 +8,5 @@ import org.springframework.stereotype.Repository
 interface OrderRepository : JpaRepository<Order, Long> {
     fun findByRestaurantIdOrderByCreatedAtDesc(restaurantId: Long): List<Order>
     fun findByDriverPhoneNumberOrderByCreatedAtDesc(phoneNumber: String): List<Order>
+    fun findByCreatedAtAfterOrderByCreatedAtDesc(date: java.time.Instant): List<Order>
 }

@@ -12,5 +12,15 @@ data class OrderResponse(
     val status: OrderStatus,
     val totalAmount: Double,
     val items: List<OrderItemResponse>,
+    val customerName: String,
+    val customerPhone: String,
+    val locationMethod: String,
+    val deliveryZoneId: Long?,
+    val whatsappMapLink: String?,
+    val detailedAddress: String?,
+    val latitude: Double?,
+    val longitude: Double?,
+    val routeDistanceKm: Double?,
+    val deliveryFee: Double,
     val createdAt: Instant
 )

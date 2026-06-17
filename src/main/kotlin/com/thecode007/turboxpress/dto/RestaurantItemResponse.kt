@@ -20,7 +20,7 @@ data class RestaurantItemResponse(
                 title = item.title,
                 description = item.description,
                 price = item.price,
-                category = item.category,
+                category = item.category?.name,
                 isAvailable = item.isAvailable,
                 photoUrls = item.photoUrls
             )

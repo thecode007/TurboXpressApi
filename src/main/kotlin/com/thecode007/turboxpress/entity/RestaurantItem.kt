@@ -18,8 +18,9 @@ class RestaurantItem(
     @Column(nullable = false)
     var price: Double,
 
-    @Column(name = "category")
-    var category: String? = null,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    var category: RestaurantCategory? = null,
 
     @Column(name = "is_available", nullable = false)
     var isAvailable: Boolean = true,

@@ -67,7 +67,8 @@ class RestaurantController(
 @RequestMapping("/api/merchant/restaurants")
 class MerchantRestaurantController(
     private val restaurantService: RestaurantService,
-    private val restaurantItemService: RestaurantItemService
+    private val restaurantItemService: RestaurantItemService,
+    private val restaurantCategoryService: com.thecode007.turboxpress.service.RestaurantCategoryService
 ) {
     @GetMapping("/my")
     fun getMyRestaurant(@org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator): ResponseEntity<BaseResponse<RestaurantResponse>> {
@@ -83,6 +84,16 @@ class MerchantRestaurantController(
         val item = restaurantItemService.addItemToRestaurantByOwner(principal.username, request)
         return ResponseEntity.ok(BaseResponse.success("Item added to restaurant successfully", item))
     }
+
+    @PostMapping("/my/categories")
+    fun addCategoryToMyRestaurant(
+        @org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator,
+        @Valid @RequestBody request: CreateCategoryRequest
+    ): ResponseEntity<BaseResponse<RestaurantCategoryResponse>> {
+        val category = restaurantCategoryService.createCategoryForOwner(principal.username, request)
+        return ResponseEntity.ok(BaseResponse.success("Category added successfully", category))
+    }
+
     @PutMapping("/items/{itemId}")
     fun updateItem(
         @PathVariable itemId: Long,

@@ -6,13 +6,16 @@ import com.thecode007.turboxpress.dto.UpdateRestaurantItemRequest
 import com.thecode007.turboxpress.entity.RestaurantItem
 import com.thecode007.turboxpress.repository.RestaurantItemRepository
 import com.thecode007.turboxpress.repository.RestaurantRepository
+import com.thecode007.turboxpress.repository.RestaurantCategoryRepository
+import com.thecode007.turboxpress.entity.RestaurantCategory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 class RestaurantItemService(
     private val restaurantItemRepository: RestaurantItemRepository,
-    private val restaurantRepository: RestaurantRepository
+    private val restaurantRepository: RestaurantRepository,
+    private val restaurantCategoryRepository: RestaurantCategoryRepository
 ) {
 
     @Transactional
@@ -24,7 +27,7 @@ class RestaurantItemService(
             title = request.title,
             description = request.description,
             price = request.price,
-            category = request.category,
+            category = resolveCategory(restaurant, request.category),
             isAvailable = request.isAvailable,
             photoUrls = request.photoUrls?.toMutableList() ?: mutableListOf(),
             restaurant = restaurant
@@ -42,7 +45,7 @@ class RestaurantItemService(
             title = request.title,
             description = request.description,
             price = request.price,
-            category = request.category,
+            category = resolveCategory(restaurant, request.category),
             isAvailable = request.isAvailable,
             photoUrls = request.photoUrls?.toMutableList() ?: mutableListOf(),
             restaurant = restaurant
@@ -59,7 +62,7 @@ class RestaurantItemService(
         request.title?.let { item.title = it }
         request.description?.let { item.description = it }
         request.price?.let { item.price = it }
-        request.category?.let { item.category = it }
+        request.category?.let { item.category = resolveCategory(item.restaurant, it) }
         request.isAvailable?.let { item.isAvailable = it }
         request.photoUrls?.let { item.photoUrls = it.toMutableList() }
 
@@ -72,5 +75,16 @@ class RestaurantItemService(
             throw IllegalArgumentException("Item not found with id: $itemId")
         }
         restaurantItemRepository.deleteById(itemId)
+    }
+
+    private fun resolveCategory(restaurant: com.thecode007.turboxpress.entity.Restaurant, categoryName: String?): RestaurantCategory? {
+        if (categoryName.isNullOrBlank()) return null
+        val name = categoryName.trim()
+        val existing = restaurantCategoryRepository.findByRestaurantIdAndNameIgnoreCase(restaurant.id, name)
+        if (existing.isPresent) {
+            return existing.get()
+        }
+        val newCategory = RestaurantCategory(name = name, restaurant = restaurant)
+        return restaurantCategoryRepository.save(newCategory)
     }
 }

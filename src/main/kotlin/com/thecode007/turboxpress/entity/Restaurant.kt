@@ -46,5 +46,8 @@ class Restaurant(
     var balance: BigDecimal = BigDecimal.ZERO,
 
     @OneToMany(mappedBy = "restaurant", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var items: MutableList<RestaurantItem> = mutableListOf()
+    var items: MutableList<RestaurantItem> = mutableListOf(),
+
+    @OneToMany(mappedBy = "restaurant", cascade = [CascadeType.ALL], orphanRemoval = true)
+    var categories: MutableList<RestaurantCategory> = mutableListOf()
 )

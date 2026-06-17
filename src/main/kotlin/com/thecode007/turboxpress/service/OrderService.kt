@@ -25,7 +25,17 @@ class OrderService(
 
         val order = Order(
             restaurant = restaurant,
-            totalAmount = 0.0
+            totalAmount = 0.0,
+            customerName = request.customerName,
+            customerPhone = request.customerPhone,
+            locationMethod = request.locationMethod,
+            deliveryZoneId = request.deliveryZoneId,
+            whatsappMapLink = request.whatsappMapLink,
+            detailedAddress = request.detailedAddress,
+            latitude = request.latitude,
+            longitude = request.longitude,
+            routeDistanceKm = request.routeDistanceKm,
+            deliveryFee = request.deliveryFee
         )
 
         val savedOrder = orderRepository.save(order)
@@ -66,7 +76,8 @@ class OrderService(
     }
 
     fun getAllOrders(): List<OrderResponse> {
-        return orderRepository.findAll().map { mapToResponse(it) }
+        val twentyFourHoursAgo = java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS)
+        return orderRepository.findByCreatedAtAfterOrderByCreatedAtDesc(twentyFourHoursAgo).map { mapToResponse(it) }
     }
 
     @Transactional
@@ -118,10 +129,26 @@ class OrderService(
         val order = orderRepository.findById(orderId)
             .orElseThrow { ResourceNotFoundException("Order not found with id: $orderId") }
         
+        val oldStatus = order.status
         order.status = status
         
-        // If order is completed or cancelled, free up the driver
-        if (status == OrderStatus.DELIVERED || status == OrderStatus.CANCELLED) {
+        val wasFinanciallyImpacted = oldStatus == OrderStatus.ON_THE_WAY || oldStatus == OrderStatus.DELIVERED
+        val isFinanciallyImpacted = status == OrderStatus.ON_THE_WAY || status == OrderStatus.DELIVERED
+        
+        if (isFinanciallyImpacted && !wasFinanciallyImpacted) {
+            val restaurant = order.restaurant
+            val debtAmount = order.deliveryFee
+            restaurant.balance = restaurant.balance.add(java.math.BigDecimal.valueOf(debtAmount))
+            restaurantRepository.save(restaurant)
+        } else if (!isFinanciallyImpacted && wasFinanciallyImpacted) {
+            val restaurant = order.restaurant
+            val debtAmount = order.deliveryFee
+            restaurant.balance = restaurant.balance.subtract(java.math.BigDecimal.valueOf(debtAmount))
+            restaurantRepository.save(restaurant)
+        }
+        
+        // If order is completed, cancelled, or rejected, free up the driver
+        if (status == OrderStatus.DELIVERED || status == OrderStatus.CANCELLED || status == OrderStatus.REJECTED) {
             order.driver?.let { driver ->
                 val userOpt = userRepository.findByPhoneNumber(driver.phoneNumber)
                 userOpt.ifPresent { user ->
@@ -156,6 +183,16 @@ class OrderService(
                     priceAtOrder = it.priceAtOrder
                 )
             },
+            customerName = order.customerName,
+            customerPhone = order.customerPhone,
+            locationMethod = order.locationMethod,
+            deliveryZoneId = order.deliveryZoneId,
+            whatsappMapLink = order.whatsappMapLink,
+            detailedAddress = order.detailedAddress,
+            latitude = order.latitude,
+            longitude = order.longitude,
+            routeDistanceKm = order.routeDistanceKm,
+            deliveryFee = order.deliveryFee,
             createdAt = order.createdAt
         )
     }

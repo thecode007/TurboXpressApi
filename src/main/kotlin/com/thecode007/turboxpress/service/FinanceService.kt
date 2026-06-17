@@ -29,11 +29,11 @@ class FinanceService(
         val orders = orderRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId)
 
         val grossSales = orders
-            .filter { it.status == OrderStatus.DELIVERED }
+            .filter { it.status != OrderStatus.CANCELLED && it.status != OrderStatus.REJECTED }
             .sumOf { it.totalAmount }
 
         val commissionsOwed = orders
-            .filter { !it.isSettled }
+            .filter { !it.isSettled && it.status != OrderStatus.CANCELLED && it.status != OrderStatus.REJECTED }
             .sumOf { it.platformCommissionAmount }
 
         val now = LocalDate.now()
@@ -43,7 +43,7 @@ class FinanceService(
             0.0
         }
 
-        val totalBalanceDue = commissionsOwed + subFeeOwed + restaurant.balance.toDouble()
+        val totalBalanceDue = subFeeOwed + restaurant.balance.toDouble()
         
         val recentOrders = orders.take(20).map {
             OrderFinanceItem(
@@ -93,14 +93,14 @@ class FinanceService(
         orderRepository.saveAll(unsettledOrders)
 
         // Handle balance reset
-        // balance is negative for debt. So debt = -balance.
+        // balance is positive for debt. So debt = balance.
         // After collecting 'collectedAmount', the new balance should reflect the remaining debt.
         
-        // totalDue = commissionsOwed + (-restaurant.balance)
+        // totalDue = subFeeOwed + restaurant.balance
         // If we collect 'collectedAmount', the remaining debt is totalDue - collectedAmount.
-        // New balance = -(totalDue - collectedAmount)
+        // New balance = remainingDebt
         val remainingDebt = totalDue - collectedAmount
-        restaurant.balance = BigDecimal.valueOf(-remainingDebt)
+        restaurant.balance = BigDecimal.valueOf(remainingDebt)
         restaurant.carriedOverBalance = 0.0 // Clearing legacy field as we now use 'balance'
 
         val now = LocalDate.now()
@@ -119,7 +119,7 @@ class FinanceService(
         val orders = orderRepository.findByDriverPhoneNumberOrderByCreatedAtDesc(phoneNumber)
 
         val deliveryFeesOwed = orders
-            .filter { !it.isSettledDriver }
+            .filter { !it.isSettledDriver && it.status != OrderStatus.CANCELLED && it.status != OrderStatus.REJECTED }
             .sumOf { it.deliveryFee }
 
         val totalBalanceDue = deliveryFeesOwed + driver.adminDebtBalance.toDouble()

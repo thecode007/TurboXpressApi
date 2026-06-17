@@ -40,6 +40,33 @@ class Order(
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
     var items: MutableList<OrderItem> = mutableListOf(),
 
+    @Column(name = "customer_name", nullable = false)
+    var customerName: String = "",
+
+    @Column(name = "customer_phone", nullable = false)
+    var customerPhone: String = "",
+
+    @Column(name = "location_method", nullable = false)
+    var locationMethod: String = "",
+
+    @Column(name = "delivery_zone_id")
+    var deliveryZoneId: Long? = null,
+
+    @Column(name = "whatsapp_map_link", length = 500)
+    var whatsappMapLink: String? = null,
+
+    @Column(name = "detailed_address", length = 500)
+    var detailedAddress: String? = null,
+
+    @Column(name = "latitude")
+    var latitude: Double? = null,
+
+    @Column(name = "longitude")
+    var longitude: Double? = null,
+
+    @Column(name = "route_distance_km")
+    var routeDistanceKm: Double? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now()
 )
