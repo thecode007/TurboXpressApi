@@ -9,7 +9,6 @@ data class RestaurantItemResponse(
     val description: String?,
     val price: Double,
     val category: String?,
-    @get:JsonProperty("isAvailable")
     val isAvailable: Boolean,
     val photoUrls: List<String>
 ) {

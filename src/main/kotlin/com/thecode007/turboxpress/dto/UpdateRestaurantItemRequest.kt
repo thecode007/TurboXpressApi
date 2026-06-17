@@ -7,7 +7,7 @@ data class UpdateRestaurantItemRequest(
     val description: String? = null,
     val price: Double? = null,
     val category: String? = null,
-    @get:JsonProperty("isAvailable")
+    @get:JsonProperty("available")
     val isAvailable: Boolean? = null,
     val photoUrls: List<String>? = null
 )
