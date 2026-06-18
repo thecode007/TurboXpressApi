@@ -28,7 +28,6 @@ class AdminProfileService(
     private val ownerProfileRepository: OwnerProfileRepository,
     private val systemAdminProfileRepository: SystemAdminProfileRepository,
     private val ownerRepository: OwnerRepository,
-    private val deliveryGuyRepository: DeliveryGuyRepository,
     private val restaurantRepository: RestaurantRepository
 ) {
     private val geometryFactory = GeometryFactory()
@@ -123,7 +122,8 @@ class AdminProfileService(
                         profilePictureUrl = p.profilePictureUrl,
                         idDocumentUrl = p.idDocumentUrl,
                         criminalRecordUrl = p.criminalRecordUrl,
-                        locationDescription = p.locationDescription
+                        locationDescription = p.locationDescription,
+                        restaurantLocation = p.restaurantLocation
                     )
                 }
             else -> throw IllegalArgumentException("Only COURIER and MERCHANT profiles require manual approval.")
@@ -161,28 +161,7 @@ class AdminProfileService(
             driverProfileRepository.save(profile)
         }
 
-        // Sync to legacy delivery_guys table (idempotent)
-        val user = profile.user
-        if (!deliveryGuyRepository.existsById(user.phoneNumber)) {
-            val deliveryGuy = DeliveryGuy(
-                phoneNumber = user.phoneNumber,
-                username = user.username ?: user.phoneNumber,
-                fullName = user.fullName,
-                passwordHash = user.passwordHash ?: "",
-                profilePictureUrl = profile.profilePictureUrl,
-                isActive = user.isActive,
-                monthlySubFee = profile.monthlySubFee,
-                billingCycle = profile.billingCycle,
-                nextBillingDate = profile.nextBillingDate ?: java.time.LocalDate.now().plusMonths(1),
-                carriedOverBalance = profile.carriedOverBalance,
-                adminDebtBalance = profile.adminDebtBalance,
-                collectedCashBalance = profile.collectedCashBalance,
-                dailyRate = profile.dailyRate
-            )
-            deliveryGuyRepository.save(deliveryGuy)
-        }
-
-        return if (alreadyApproved) "DriverProfile for $userId was already APPROVED - synced to operational table."
+        return if (alreadyApproved) "DriverProfile for $userId was already APPROVED - no changes made."
                else "DriverProfile for $userId has been APPROVED."
     }
 
@@ -215,13 +194,14 @@ class AdminProfileService(
         }
 
         // Auto-create restaurant from wizard data if not already exists
+        // Parse the "lat, lng" string submitted by the owner wizard into a proper geometry Point
         val restaurantName = profile.businessName ?: user.fullName
         if (!restaurantRepository.existsByName(restaurantName)) {
             restaurantRepository.save(
                 Restaurant(
                     name = restaurantName,
                     logoUrl = profile.profilePictureUrl,
-                    location = geometryFactory.createPoint(Coordinate(0.0, 0.0)),
+                    location = parseLocation(profile.restaurantLocation),
                     locationDescription = profile.locationDescription,
                     owner = owner,
                     monthlySubFee = 0.0,
@@ -282,7 +262,8 @@ class AdminProfileService(
                     Restaurant(
                         name = restaurantName,
                         logoUrl = profile.profilePictureUrl,
-                        location = geometryFactory.createPoint(Coordinate(0.0, 0.0)),
+                        location = parseLocation(profile.restaurantLocation),
+                        locationDescription = profile.locationDescription,
                         owner = owner,
                         monthlySubFee = 0.0,
                         commissionRate = 0.0
@@ -291,31 +272,36 @@ class AdminProfileService(
             }
         }
 
-        driverProfileRepository.findAllByVerificationStatusWithUser(VerificationStatus.APPROVED).forEach { profile ->
-            val user = profile.user
-            if (!deliveryGuyRepository.existsById(user.phoneNumber)) {
-                deliveryGuyRepository.save(
-                    DeliveryGuy(
-                        phoneNumber = user.phoneNumber,
-                        username = user.username ?: user.phoneNumber,
-                        fullName = user.fullName,
-                        passwordHash = user.passwordHash ?: "",
-                        profilePictureUrl = profile.profilePictureUrl,
-                        isActive = user.isActive,
-                        monthlySubFee = profile.monthlySubFee,
-                        billingCycle = profile.billingCycle,
-                        nextBillingDate = profile.nextBillingDate ?: java.time.LocalDate.now().plusMonths(1),
-                        carriedOverBalance = profile.carriedOverBalance,
-                        adminDebtBalance = profile.adminDebtBalance,
-                        collectedCashBalance = profile.collectedCashBalance,
-                        dailyRate = profile.dailyRate
-                    )
-                )
-                driversSynced++
-            }
-        }
+
 
         return mapOf("ownersSynced" to ownersSynced, "driversSynced" to driversSynced)
+    }
+
+    /**
+     * Parses a "lat, lng" coordinate string (as produced by the mobile map picker)
+     * into a PostGIS-compatible JTS Point with SRID 4326.
+     *
+     * Note: JTS Coordinate(x, y) = Coordinate(longitude, latitude).
+     * The mobile sends "latitude, longitude" so we swap the values.
+     * Falls back to (0, 0) if the string is missing or malformed.
+     */
+    private fun parseLocation(locationString: String?): org.locationtech.jts.geom.Point {
+        if (!locationString.isNullOrBlank()) {
+            val parts = locationString.split(",")
+            if (parts.size == 2) {
+                val lat = parts[0].trim().toDoubleOrNull()
+                val lng = parts[1].trim().toDoubleOrNull()
+                if (lat != null && lng != null) {
+                    val point = geometryFactory.createPoint(Coordinate(lng, lat)) // JTS: x=lng, y=lat
+                    point.srid = 4326
+                    return point
+                }
+            }
+        }
+        // Fallback to 0,0 if location wasn't provided
+        val fallback = geometryFactory.createPoint(Coordinate(0.0, 0.0))
+        fallback.srid = 4326
+        return fallback
     }
 
     /** Generic status setter used by rejectProfile(). */

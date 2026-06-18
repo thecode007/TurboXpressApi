@@ -13,7 +13,6 @@ class OrderService(
     private val orderItemRepository: OrderItemRepository,
     private val restaurantRepository: RestaurantRepository,
     private val restaurantItemRepository: RestaurantItemRepository,
-    private val deliveryGuyRepository: DeliveryGuyRepository,
     private val driverProfileRepository: DriverProfileRepository,
     private val userRepository: UserRepository
 ) {
@@ -85,21 +84,16 @@ class OrderService(
         val order = orderRepository.findById(orderId)
             .orElseThrow { ResourceNotFoundException("Order not found with id: $orderId") }
         
-        val driver = deliveryGuyRepository.findById(driverPhoneNumber)
-            .orElseThrow { ResourceNotFoundException("Driver not found with phone: $driverPhoneNumber") }
+        val user = userRepository.findByPhoneNumber(driverPhoneNumber)
+            .orElseThrow { ResourceNotFoundException("User not found with phone: $driverPhoneNumber") }
+        val driverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
+            ?: throw ResourceNotFoundException("Driver profile not found with phone: $driverPhoneNumber")
 
-        order.driver = driver
+        order.driver = driverProfile
         order.status = OrderStatus.ACCEPTED
         
-        val userOpt = userRepository.findByPhoneNumber(driverPhoneNumber)
-        userOpt.ifPresent { user ->
-            user.id?.let { id ->
-                driverProfileRepository.findById(id).ifPresent { profile ->
-                    profile.status = DriverStatus.ON_DELIVERY
-                    driverProfileRepository.save(profile)
-                }
-            }
-        }
+        driverProfile.status = DriverStatus.ON_DELIVERY
+        driverProfileRepository.save(driverProfile)
         
         return mapToResponse(orderRepository.save(order))
     }
@@ -112,11 +106,7 @@ class OrderService(
         val nearestProfile = driverProfileRepository.findNearestIdleDriver(order.restaurant.location)
             ?: throw ResourceNotFoundException("No idle drivers available near the restaurant")
 
-        val driverPhoneNumber = nearestProfile.user.phoneNumber
-        val driver = deliveryGuyRepository.findById(driverPhoneNumber)
-            .orElseThrow { ResourceNotFoundException("Delivery guy not found for phone number: $driverPhoneNumber") }
-
-        order.driver = driver
+        order.driver = nearestProfile
         order.status = OrderStatus.ACCEPTED
         nearestProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(nearestProfile)
@@ -149,20 +139,31 @@ class OrderService(
         
         // If order is completed, cancelled, or rejected, free up the driver
         if (status == OrderStatus.DELIVERED || status == OrderStatus.CANCELLED || status == OrderStatus.REJECTED) {
-            order.driver?.let { driver ->
-                val userOpt = userRepository.findByPhoneNumber(driver.phoneNumber)
-                userOpt.ifPresent { user ->
-                    user.id?.let { id ->
-                        driverProfileRepository.findById(id).ifPresent { profile ->
-                            profile.status = DriverStatus.IDLE
-                            driverProfileRepository.save(profile)
-                        }
-                    }
-                }
+            order.driver?.let { profile ->
+                profile.status = DriverStatus.IDLE
+                driverProfileRepository.save(profile)
             }
         }
         
         return mapToResponse(orderRepository.save(order))
+    }
+
+    @Transactional
+    fun assignDriverFromScheduler(orderId: Long, driverProfile: DriverProfile): Boolean {
+        val order = orderRepository.findById(orderId).orElse(null) ?: return false
+        
+        if (order.driver != null) {
+            return false
+        }
+        
+        order.driver = driverProfile
+        // Status remains unchanged (already ACCEPTED or PREPARING)
+        orderRepository.save(order)
+        
+        driverProfile.status = DriverStatus.ON_DELIVERY
+        driverProfileRepository.save(driverProfile)
+        
+        return true
     }
 
     private fun mapToResponse(order: Order): OrderResponse {
@@ -170,8 +171,8 @@ class OrderService(
             id = order.id,
             restaurantId = order.restaurant.id,
             restaurantName = order.restaurant.name,
-            driverPhoneNumber = order.driver?.phoneNumber,
-            driverFullName = order.driver?.fullName,
+            driverPhoneNumber = order.driver?.user?.phoneNumber,
+            driverFullName = order.driver?.user?.fullName,
             status = order.status,
             totalAmount = order.totalAmount,
             items = order.items.map {

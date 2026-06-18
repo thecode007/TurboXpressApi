@@ -136,3 +136,9 @@ enum class DriverStatus {
     ON_DELIVERY,
     OFFLINE
 }
+
+enum class BillingCycle {
+    DAILY,
+    WEEKLY,
+    MONTHLY
+}

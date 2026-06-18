@@ -37,6 +37,9 @@ data class OwnerProfile(
     @Column(name = "location_description", length = 500)
     var locationDescription: String? = null,
 
+    @Column(name = "restaurant_location", length = 500)
+    var restaurantLocation: String? = null,
+
     // --- Document URLs (nullable - enables admin override before upload) -------
 
     /** Government-issued ID scan. */

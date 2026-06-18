@@ -40,6 +40,9 @@ data class CustomerProfile(
     @Column(name = "default_address_longitude")
     var defaultAddressLongitude: Double? = null,
 
+    @Column(name = "default_address_label", length = 500)
+    var defaultAddressLabel: String? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false, length = 20)
     var verificationStatus: VerificationStatus = VerificationStatus.APPROVED,

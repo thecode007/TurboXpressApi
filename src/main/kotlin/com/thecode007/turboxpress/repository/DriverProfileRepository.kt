@@ -3,8 +3,10 @@ package com.thecode007.turboxpress.repository
 import com.thecode007.turboxpress.entity.DriverProfile
 import com.thecode007.turboxpress.entity.VerificationStatus
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.util.Optional
 import java.util.UUID
 
@@ -23,6 +25,7 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     fun findAllByVerificationStatusWithUser(status: VerificationStatus): List<DriverProfile>
 
     /** Finds the nearest idle driver using PostGIS <-> nearest-neighbor operator. */
+    @Transactional
     @Query(value = """
         SELECT * FROM driver_profiles d 
         WHERE d.is_available = true 
@@ -30,6 +33,11 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
         AND d.current_location IS NOT NULL 
         ORDER BY d.current_location <-> :restaurantLocation 
         LIMIT 1
+        FOR UPDATE SKIP LOCKED
     """, nativeQuery = true)
     fun findNearestIdleDriver(@org.springframework.data.repository.query.Param("restaurantLocation") restaurantLocation: org.locationtech.jts.geom.Point): DriverProfile?
+
+    @Modifying
+    @Query("UPDATE DriverProfile p SET p.adminDebtBalance = p.adminDebtBalance - p.dailyRate WHERE p.dailyRate > 0 AND p.verificationStatus = 'APPROVED'")
+    fun accrueDailySalaries(): Int
 }

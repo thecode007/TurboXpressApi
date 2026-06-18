@@ -52,7 +52,13 @@ class ProfileService(
                     val url = mediaService.uploadProfilePicture(it)
                     profile.profilePictureUrl = url
                 }
-                
+
+                // Save the location label sent from the mobile sign-up form
+                additionalData["location"]?.takeIf { it.isNotBlank() }?.let { loc ->
+                    logger.info("Saving location label for customer $userId: $loc")
+                    profile.defaultAddressLabel = loc
+                }
+
                 customerProfileRepository.save(profile)
                 logger.info("Customer profile updated for $userId")
             }
@@ -86,6 +92,12 @@ class ProfileService(
                 val profile = ownerProfileRepository.findById(userId).orElseThrow { Exception("Owner profile not found") }
                 profile.businessName = additionalData["restaurantName"] ?: displayName
                 profile.locationDescription = additionalData["locationDescription"]
+
+                // Save the coordinate/address string picked from the map
+                additionalData["location"]?.takeIf { it.isNotBlank() }?.let { loc ->
+                    logger.info("Saving restaurant location for merchant $userId: $loc")
+                    profile.restaurantLocation = loc
+                }
                 
                 profilePic?.let {
                     logger.info("Uploading profile picture for merchant $userId")

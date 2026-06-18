@@ -7,7 +7,8 @@ import com.thecode007.turboxpress.dto.DriverFinanceSummary
 import com.thecode007.turboxpress.dto.DriverOrderFinanceItem
 import com.thecode007.turboxpress.entity.BillingCycle
 import com.thecode007.turboxpress.exception.ResourceNotFoundException
-import com.thecode007.turboxpress.repository.DeliveryGuyRepository
+import com.thecode007.turboxpress.repository.DriverProfileRepository
+import com.thecode007.turboxpress.repository.UserRepository
 import com.thecode007.turboxpress.repository.OrderRepository
 import com.thecode007.turboxpress.repository.RestaurantRepository
 import org.springframework.stereotype.Service
@@ -19,7 +20,8 @@ import java.time.LocalDate
 class FinanceService(
     private val orderRepository: OrderRepository,
     private val restaurantRepository: RestaurantRepository,
-    private val deliveryGuyRepository: DeliveryGuyRepository
+    private val driverProfileRepository: DriverProfileRepository,
+    private val userRepository: UserRepository
 ) {
 
     fun getRestaurantSummary(restaurantId: Long): RestaurantFinanceSummary {
@@ -113,10 +115,12 @@ class FinanceService(
     }
 
     fun getDriverSummary(phoneNumber: String): DriverFinanceSummary {
-        val driver = deliveryGuyRepository.findById(phoneNumber)
-            .orElseThrow { ResourceNotFoundException("Driver not found with phone: $phoneNumber") }
+        val user = userRepository.findByPhoneNumber(phoneNumber)
+            .orElseThrow { ResourceNotFoundException("User not found with phone: $phoneNumber") }
+        val driver = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
+            ?: throw ResourceNotFoundException("Driver not found with phone: $phoneNumber")
 
-        val orders = orderRepository.findByDriverPhoneNumberOrderByCreatedAtDesc(phoneNumber)
+        val orders = orderRepository.findByDriverUserPhoneNumberOrderByCreatedAtDesc(phoneNumber)
 
         val deliveryFeesOwed = orders
             .filter { !it.isSettledDriver && it.status != OrderStatus.CANCELLED && it.status != OrderStatus.REJECTED }
@@ -136,8 +140,8 @@ class FinanceService(
         }
 
         return DriverFinanceSummary(
-            phoneNumber = driver.phoneNumber,
-            fullName = driver.fullName,
+            phoneNumber = user.phoneNumber,
+            fullName = user.fullName,
             deliveryFeesOwed = deliveryFeesOwed,
             subFeeOwed = driver.adminDebtBalance.toDouble(), // Repurpose for UI compatibility
             adminDebtBalance = driver.adminDebtBalance.toDouble(),
@@ -145,15 +149,17 @@ class FinanceService(
             dailyRate = driver.dailyRate.toDouble(),
             carriedOverBalance = driver.carriedOverBalance,
             totalBalanceDue = totalBalanceDue,
-            nextBillingDate = driver.nextBillingDate,
+            nextBillingDate = driver.nextBillingDate ?: LocalDate.now(),
             recentOrders = recentOrders
         )
     }
 
     @Transactional
     fun settleDriver(phoneNumber: String, amount: Double? = null): DriverFinanceSummary {
-        val driver = deliveryGuyRepository.findById(phoneNumber)
-            .orElseThrow { ResourceNotFoundException("Driver not found with phone: $phoneNumber") }
+        val user = userRepository.findByPhoneNumber(phoneNumber)
+            .orElseThrow { ResourceNotFoundException("User not found with phone: $phoneNumber") }
+        val driver = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
+            ?: throw ResourceNotFoundException("Driver not found with phone: $phoneNumber")
 
         // Compute total owed before settling
         val summary = getDriverSummary(phoneNumber)
@@ -166,7 +172,7 @@ class FinanceService(
         val collectedAmount = amount ?: totalDue
 
         // Mark all unsettled orders as settled
-        val unsettledOrders = orderRepository.findByDriverPhoneNumberOrderByCreatedAtDesc(phoneNumber)
+        val unsettledOrders = orderRepository.findByDriverUserPhoneNumberOrderByCreatedAtDesc(phoneNumber)
             .filter { !it.isSettledDriver }
 
         unsettledOrders.forEach { it.isSettledDriver = true }
@@ -179,14 +185,15 @@ class FinanceService(
         driver.carriedOverBalance = 0.0 // Clear legacy field
 
         val now = LocalDate.now()
-        if (now.isAfter(driver.nextBillingDate) || now.isEqual(driver.nextBillingDate)) {
+        val nextBillingDate = driver.nextBillingDate ?: now
+        if (now.isAfter(nextBillingDate) || now.isEqual(nextBillingDate)) {
             driver.nextBillingDate = when (driver.billingCycle) {
-                BillingCycle.DAILY -> driver.nextBillingDate.plusDays(1)
-                BillingCycle.WEEKLY -> driver.nextBillingDate.plusWeeks(1)
-                BillingCycle.MONTHLY -> driver.nextBillingDate.plusMonths(1)
+                BillingCycle.DAILY -> nextBillingDate.plusDays(1)
+                BillingCycle.WEEKLY -> nextBillingDate.plusWeeks(1)
+                BillingCycle.MONTHLY -> nextBillingDate.plusMonths(1)
             }
         }
-        deliveryGuyRepository.save(driver)
+        driverProfileRepository.save(driver)
 
         return getDriverSummary(phoneNumber)
     }

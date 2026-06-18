@@ -15,8 +15,8 @@ class Order(
     var restaurant: Restaurant,
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "driver_phone_number", referencedColumnName = "phone_number")
-    var driver: DeliveryGuy? = null,
+    @JoinColumn(name = "driver_id", referencedColumnName = "user_id")
+    var driver: DriverProfile? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

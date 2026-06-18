@@ -48,3 +48,19 @@ class DeliveryZoneController(
         return ResponseEntity.ok(BaseResponse.success("Delivery zone deleted successfully", null))
     }
 }
+
+/**
+ * Read-only delivery zone endpoint accessible to restaurant owners (MERCHANT role).
+ * Used by the mobile app during order creation to populate the zone dropdown.
+ */
+@RestController
+@RequestMapping("/api/merchant/delivery-zones")
+class MerchantDeliveryZoneController(
+    private val deliveryZoneService: DeliveryZoneService
+) {
+    @GetMapping
+    fun getAllDeliveryZones(): ResponseEntity<BaseResponse<List<DeliveryZoneResponse>>> {
+        val zones = deliveryZoneService.getAllDeliveryZones()
+        return ResponseEntity.ok(BaseResponse.success("Delivery zones retrieved successfully", zones))
+    }
+}
