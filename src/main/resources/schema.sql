@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS driver_profiles (
     license_number VARCHAR(100),
     vehicle_type VARCHAR(50),
     vehicle_plate VARCHAR(50),
-    is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    online_status VARCHAR(20) NOT NULL DEFAULT 'OFFLINE',
     rating DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     monthly_sub_fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     billing_cycle VARCHAR(20) NOT NULL DEFAULT 'MONTHLY',
@@ -164,6 +164,10 @@ CREATE TABLE IF NOT EXISTS driver_profiles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_driver_profiles_location ON driver_profiles USING GIST(current_location);
+
+-- Idempotent migrations for driver profiles
+ALTER TABLE driver_profiles DROP COLUMN IF EXISTS is_available;
+ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS online_status VARCHAR(20) NOT NULL DEFAULT 'OFFLINE';
 
 -- Owner Profiles
 CREATE TABLE IF NOT EXISTS owner_profiles (

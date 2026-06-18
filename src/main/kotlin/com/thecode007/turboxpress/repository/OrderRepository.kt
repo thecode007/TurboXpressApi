@@ -11,4 +11,5 @@ interface OrderRepository : JpaRepository<Order, Long> {
     fun findByDriverUserPhoneNumberOrderByCreatedAtDesc(phoneNumber: String): List<Order>
     fun findByCreatedAtAfterOrderByCreatedAtDesc(date: java.time.Instant): List<Order>
     fun findByDriverIsNullAndStatusInOrderByCreatedAtAsc(statuses: List<OrderStatus>): List<Order>
+    fun findByDriverIdAndStatusInOrderByCreatedAtDesc(driverId: java.util.UUID, statuses: List<OrderStatus>): List<Order>
 }

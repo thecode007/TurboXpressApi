@@ -66,4 +66,19 @@ class ProfileController(
             ResponseEntity.internalServerError().body(BaseResponse.error("Upload failed: ${e.message}"))
         }
     }
+
+    @PatchMapping("/driver/online-status")
+    fun updateOnlineStatus(
+        @AuthenticationPrincipal principal: PermissionDecorator,
+        @RequestParam status: String
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        val userId = UUID.fromString(principal.getUserId())
+        return try {
+            profileService.updateOnlineStatus(userId, status)
+            ResponseEntity.ok(BaseResponse.success("Online status updated to $status"))
+        } catch (e: Exception) {
+            logger.error("Failed to update online status for user: $userId", e)
+            ResponseEntity.internalServerError().body(BaseResponse.error("Failed to update status: ${e.message}"))
+        }
+    }
 }

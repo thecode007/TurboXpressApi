@@ -28,7 +28,7 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     @Transactional
     @Query(value = """
         SELECT * FROM driver_profiles d 
-        WHERE d.is_available = true 
+        WHERE d.online_status = 'ONLINE' 
         AND d.status = 'IDLE'
         AND d.current_location IS NOT NULL 
         ORDER BY d.current_location <-> :restaurantLocation 

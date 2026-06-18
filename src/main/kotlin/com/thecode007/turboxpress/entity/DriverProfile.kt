@@ -57,8 +57,9 @@ data class DriverProfile(
     @Column(name = "vehicle_plate", length = 50)
     var vehiclePlate: String? = null,
 
-    @Column(name = "is_available", nullable = false)
-    var isAvailable: Boolean = true,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "online_status", nullable = false, length = 20)
+    var onlineStatus: OnlineStatus = OnlineStatus.OFFLINE,
 
     @Column(name = "rating", nullable = false)
     var rating: Double = 0.0,
@@ -141,4 +142,9 @@ enum class BillingCycle {
     DAILY,
     WEEKLY,
     MONTHLY
+}
+
+enum class OnlineStatus {
+    ONLINE,
+    OFFLINE
 }

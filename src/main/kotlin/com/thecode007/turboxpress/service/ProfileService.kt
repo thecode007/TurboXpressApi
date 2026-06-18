@@ -123,4 +123,13 @@ class ProfileService(
             }
         }
     }
+
+    @Transactional
+    fun updateOnlineStatus(userId: UUID, status: String) {
+        val profile = driverProfileRepository.findById(userId)
+            .orElseThrow { Exception("Driver profile not found") }
+        profile.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.valueOf(status.uppercase())
+        driverProfileRepository.save(profile)
+        logger.info("Updated online status to $status for driver $userId")
+    }
 }

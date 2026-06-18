@@ -36,6 +36,10 @@ class OrderAutoAssignmentScheduler(
                     // Notify the owner explicitly that a driver has been assigned to their order.
                     val ownerPhone = order.restaurant.owner.phoneNumber
                     notifyFrontend(order.id, ownerPhone)
+                    
+                    // Notify the driver
+                    val driverPhone = nearestProfile.user.phoneNumber
+                    notifyDriver(order.id, driverPhone)
                 }
             }
         }
@@ -61,6 +65,29 @@ class OrderAutoAssignmentScheduler(
             FirebaseMessaging.getInstance().send(message)
         } catch (e: Exception) {
             println("Failed to send driver assignment notification for order $orderId: ${e.message}")
+        }
+    }
+
+    private fun notifyDriver(orderId: Long?, driverPhoneNumber: String?) {
+        if (orderId == null || driverPhoneNumber == null) return
+        try {
+            val sanitizedPhone = driverPhoneNumber.replace(Regex("[^a-zA-Z0-9-_.~%]"), "")
+            val topic = "driver_$sanitizedPhone"
+            val message = Message.builder()
+                .setTopic(topic)
+                .setNotification(
+                    Notification.builder()
+                        .setTitle("New Delivery Request")
+                        .setBody("You have a new delivery request for order #$orderId.")
+                        .build()
+                )
+                .putData("orderId", orderId.toString())
+                .putData("type", "NEW_DELIVERY_REQUEST")
+                .build()
+
+            FirebaseMessaging.getInstance().send(message)
+        } catch (e: Exception) {
+            println("Failed to send delivery request notification for driver $driverPhoneNumber: ${e.message}")
         }
     }
 }

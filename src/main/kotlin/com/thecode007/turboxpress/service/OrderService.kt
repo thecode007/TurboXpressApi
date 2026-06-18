@@ -115,6 +115,24 @@ class OrderService(
     }
 
     @Transactional
+    fun rejectOrder(orderId: Long): OrderResponse {
+        val order = orderRepository.findById(orderId)
+            .orElseThrow { ResourceNotFoundException("Order not found with id: $orderId") }
+        
+        val driverProfile = order.driver 
+            ?: throw IllegalStateException("Order is not assigned to a driver")
+
+        // Unassign driver so it can be picked up by the auto-assignment scheduler
+        order.driver = null
+        
+        driverProfile.onlineStatus = OnlineStatus.OFFLINE
+        driverProfile.status = DriverStatus.IDLE
+        driverProfileRepository.save(driverProfile)
+        
+        return mapToResponse(orderRepository.save(order))
+    }
+
+    @Transactional
     fun updateOrderStatus(orderId: Long, status: OrderStatus): OrderResponse {
         val order = orderRepository.findById(orderId)
             .orElseThrow { ResourceNotFoundException("Order not found with id: $orderId") }
@@ -146,6 +164,12 @@ class OrderService(
         }
         
         return mapToResponse(orderRepository.save(order))
+    }
+
+    fun getActiveDeliveryForDriver(driverId: java.util.UUID): OrderResponse? {
+        val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.ON_THE_WAY)
+        val orders = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtDesc(driverId, targetStatuses)
+        return orders.firstOrNull()?.let { mapToResponse(it) }
     }
 
     @Transactional
