@@ -18,5 +18,8 @@ data class AppSetting(
     var driverSubscriptionFee: Double = 0.0,
 
     @Column(nullable = false)
-    var pricePerKm: Double = 1.5 // Default value
+    var pricePerKm: Double = 1.5, // Default value
+
+    @Column(name = "base_fare", nullable = false, columnDefinition = "float8 default 0.0")
+    var baseFare: Double = 0.0
 )

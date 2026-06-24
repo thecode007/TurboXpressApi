@@ -20,6 +20,8 @@ data class OrderResponse(
     val detailedAddress: String?,
     val latitude: Double?,
     val longitude: Double?,
+    val driverLat: Double?,
+    val driverLng: Double?,
     val routeDistanceKm: Double?,
     val deliveryFee: Double,
     val createdAt: Instant

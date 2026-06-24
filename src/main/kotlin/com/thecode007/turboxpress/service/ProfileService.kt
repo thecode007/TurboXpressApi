@@ -124,6 +124,12 @@ class ProfileService(
         }
     }
 
+    fun getOnlineStatus(userId: UUID): String {
+        return driverProfileRepository.findById(userId)
+            .map { it.onlineStatus.name }
+            .orElse("OFFLINE")
+    }
+
     @Transactional
     fun updateOnlineStatus(userId: UUID, status: String) {
         val profile = driverProfileRepository.findById(userId)

@@ -84,32 +84,6 @@ CREATE TABLE IF NOT EXISTS restaurant_item_photos (
     FOREIGN KEY (item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
 );
 
--- Create orders table
-CREATE TABLE IF NOT EXISTS orders (
-    id BIGSERIAL PRIMARY KEY,
-    restaurant_id BIGINT NOT NULL,
-    driver_id VARCHAR(36),
-    status VARCHAR(50) NOT NULL,
-    total_amount DOUBLE PRECISION NOT NULL,
-    platform_commission_amount DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    is_settled BOOLEAN NOT NULL DEFAULT FALSE,
-    delivery_fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    is_settled_driver BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
-    FOREIGN KEY (driver_id) REFERENCES driver_profiles(user_id) ON DELETE SET NULL
-);
-
--- Create order_items table
-CREATE TABLE IF NOT EXISTS order_items (
-    id BIGSERIAL PRIMARY KEY,
-    order_id BIGINT NOT NULL,
-    menu_item_id BIGINT NOT NULL,
-    quantity INT NOT NULL,
-    price_at_order DOUBLE PRECISION NOT NULL,
-    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (menu_item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
-);
 
 -- ============================================================
 -- Profile Partitioning Pattern — Profile Tables
@@ -196,4 +170,31 @@ CREATE TABLE IF NOT EXISTS system_admin_profiles (
     verification_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create orders table
+CREATE TABLE IF NOT EXISTS orders (
+    id BIGSERIAL PRIMARY KEY,
+    restaurant_id BIGINT NOT NULL,
+    driver_id VARCHAR(36),
+    status VARCHAR(50) NOT NULL,
+    total_amount DOUBLE PRECISION NOT NULL,
+    platform_commission_amount DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    is_settled BOOLEAN NOT NULL DEFAULT FALSE,
+    delivery_fee DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    is_settled_driver BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (driver_id) REFERENCES driver_profiles(user_id) ON DELETE SET NULL
+);
+
+-- Create order_items table
+CREATE TABLE IF NOT EXISTS order_items (
+    id BIGSERIAL PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    menu_item_id BIGINT NOT NULL,
+    quantity INT NOT NULL,
+    price_at_order DOUBLE PRECISION NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (menu_item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
 );

@@ -4,8 +4,13 @@ import com.graphhopper.GHRequest
 import com.graphhopper.GraphHopper
 import org.springframework.stereotype.Service
 
+import com.thecode007.turboxpress.service.AppSettingService
+
 @Service
-class PricingService(private val graphHopper: GraphHopper) {
+class PricingService(
+    private val graphHopper: GraphHopper,
+    private val appSettingService: AppSettingService
+) {
 
     fun calculateDeliveryPrice(
         driverLat: Double, 
@@ -13,7 +18,7 @@ class PricingService(private val graphHopper: GraphHopper) {
         customerLat: Double, 
         customerLon: Double, 
         pricePerKm: Double
-    ): Double {
+    ): Pair<Double, Double> {
         val request = GHRequest(driverLat, driverLon, customerLat, customerLon)
             .setProfile("car")
         
@@ -31,11 +36,11 @@ class PricingService(private val graphHopper: GraphHopper) {
         val distanceInMeters = path.distance
         val distanceInKm = distanceInMeters / 1000.0
         
-        val rawPrice = BASE_FARE + (distanceInKm * pricePerKm)
-        return java.math.BigDecimal(rawPrice).setScale(2, java.math.RoundingMode.HALF_EVEN).toDouble()
+        val settings = appSettingService.getSettings()
+        val rawPrice = settings.baseFare + (distanceInKm * pricePerKm)
+        val finalPrice = java.math.BigDecimal(rawPrice).setScale(2, java.math.RoundingMode.HALF_EVEN).toDouble()
+        return Pair(finalPrice, distanceInKm)
     }
 
-    companion object {
-        private const val BASE_FARE = 2.50
-    }
+
 }

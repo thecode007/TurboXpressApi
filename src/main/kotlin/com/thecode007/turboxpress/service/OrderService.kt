@@ -14,7 +14,8 @@ class OrderService(
     private val restaurantRepository: RestaurantRepository,
     private val restaurantItemRepository: RestaurantItemRepository,
     private val driverProfileRepository: DriverProfileRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val notificationService: NotificationService
 ) {
 
     @Transactional
@@ -95,7 +96,13 @@ class OrderService(
         driverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(driverProfile)
         
-        return mapToResponse(orderRepository.save(order))
+        val savedOrder = orderRepository.save(order)
+        
+        // Notify owner and driver
+        notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
+        notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
+        
+        return mapToResponse(savedOrder)
     }
 
     @Transactional
@@ -111,7 +118,13 @@ class OrderService(
         nearestProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(nearestProfile)
         
-        return mapToResponse(orderRepository.save(order))
+        val savedOrder = orderRepository.save(order)
+        
+        // Notify owner and driver
+        notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
+        notificationService.notifyDriver(savedOrder.id, nearestProfile.user.phoneNumber)
+        
+        return mapToResponse(savedOrder)
     }
 
     @Transactional
@@ -173,12 +186,14 @@ class OrderService(
     }
 
     @Transactional
-    fun assignDriverFromScheduler(orderId: Long, driverProfile: DriverProfile): Boolean {
+    fun assignDriverFromScheduler(orderId: Long, driverProfileId: java.util.UUID): Boolean {
         val order = orderRepository.findById(orderId).orElse(null) ?: return false
         
         if (order.driver != null) {
             return false
         }
+        
+        val driverProfile = driverProfileRepository.findById(driverProfileId).orElse(null) ?: return false
         
         order.driver = driverProfile
         // Status remains unchanged (already ACCEPTED or PREPARING)
@@ -186,6 +201,10 @@ class OrderService(
         
         driverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(driverProfile)
+        
+        // Notify owner and driver
+        notificationService.notifyFrontend(order.id, order.restaurant.owner.phoneNumber)
+        notificationService.notifyDriver(order.id, driverProfile.user.phoneNumber)
         
         return true
     }
@@ -216,6 +235,8 @@ class OrderService(
             detailedAddress = order.detailedAddress,
             latitude = order.latitude,
             longitude = order.longitude,
+            driverLat = order.driver?.currentLocation?.y,
+            driverLng = order.driver?.currentLocation?.x,
             routeDistanceKm = order.routeDistanceKm,
             deliveryFee = order.deliveryFee,
             createdAt = order.createdAt

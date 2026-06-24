@@ -8,6 +8,11 @@ data class UpdateLocationRequest(
     val longitude: Double
 )
 
+data class DriverLocationUpdateRequest(
+    val latitude: Double,
+    val longitude: Double
+)
+
 data class NearestDriverResponse(
     val driverId: UUID,
     val driverName: String?,

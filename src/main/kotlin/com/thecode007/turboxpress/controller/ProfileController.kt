@@ -67,6 +67,20 @@ class ProfileController(
         }
     }
 
+    @GetMapping("/driver/online-status")
+    fun getOnlineStatus(
+        @AuthenticationPrincipal principal: PermissionDecorator
+    ): ResponseEntity<BaseResponse<String>> {
+        val userId = UUID.fromString(principal.getUserId())
+        return try {
+            val status = profileService.getOnlineStatus(userId)
+            ResponseEntity.ok(BaseResponse.success("Online status retrieved", status))
+        } catch (e: Exception) {
+            logger.error("Failed to get online status for user: $userId", e)
+            ResponseEntity.internalServerError().body(BaseResponse.error("Failed to get status: ${e.message}"))
+        }
+    }
+
     @PatchMapping("/driver/online-status")
     fun updateOnlineStatus(
         @AuthenticationPrincipal principal: PermissionDecorator,

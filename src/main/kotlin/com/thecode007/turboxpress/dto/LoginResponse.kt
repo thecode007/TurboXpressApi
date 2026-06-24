@@ -31,5 +31,15 @@ data class LoginResponse(
     /**
      * The current verification status of the profile.
      */
-    val verificationStatus: String = "PENDING"
+    val verificationStatus: String = "PENDING",
+
+    /**
+     * True if the user is APPROVED but has not yet set a password.
+     */
+    val requiresPasswordSetup: Boolean = false,
+
+    /**
+     * True if the user is APPROVED, has a password, but did not provide it during login.
+     */
+    val requiresPasswordEntry: Boolean = false
 )

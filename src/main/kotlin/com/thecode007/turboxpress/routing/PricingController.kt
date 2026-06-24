@@ -23,8 +23,8 @@ class PricingController(private val pricingService: PricingService) {
         }
         
         return try {
-            val price = pricingService.calculateDeliveryPrice(driverLat, driverLon, customerLat, customerLon, pricePerKm)
-            ResponseEntity.ok(mapOf("fare" to price))
+            val result = pricingService.calculateDeliveryPrice(driverLat, driverLon, customerLat, customerLon, pricePerKm)
+            ResponseEntity.ok(mapOf("fare" to result.first, "distance" to result.second))
         } catch (e: UnroutableLocationException) {
             ResponseEntity.badRequest().body(mapOf("error" to e.message))
         }
