@@ -18,6 +18,11 @@ class Order(
     @JoinColumn(name = "driver_id", referencedColumnName = "user_id")
     var driver: DriverProfile? = null,
 
+    /** FK to the customers table — carries all customer location info. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", nullable = false)
+    var customer: Customer,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: OrderStatus = OrderStatus.PENDING,
@@ -39,30 +44,6 @@ class Order(
 
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
     var items: MutableList<OrderItem> = mutableListOf(),
-
-    @Column(name = "customer_name", nullable = false)
-    var customerName: String = "",
-
-    @Column(name = "customer_phone", nullable = false)
-    var customerPhone: String = "",
-
-    @Column(name = "location_method", nullable = false)
-    var locationMethod: String = "",
-
-    @Column(name = "delivery_zone_id")
-    var deliveryZoneId: Long? = null,
-
-    @Column(name = "whatsapp_map_link", length = 500)
-    var whatsappMapLink: String? = null,
-
-    @Column(name = "detailed_address", length = 500)
-    var detailedAddress: String? = null,
-
-    @Column(name = "latitude")
-    var latitude: Double? = null,
-
-    @Column(name = "longitude")
-    var longitude: Double? = null,
 
     @Column(name = "route_distance_km")
     var routeDistanceKm: Double? = null,

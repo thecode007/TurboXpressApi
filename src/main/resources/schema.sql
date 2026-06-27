@@ -198,3 +198,40 @@ CREATE TABLE IF NOT EXISTS order_items (
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (menu_item_id) REFERENCES restaurant_items(id) ON DELETE CASCADE
 );
+
+-- ============================================================
+-- Customers table (desktop-managed customer records)
+-- One row per unique phone number. Zone + exact coordinates
+-- are stored here so they persist across orders.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS customers (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(36),
+    full_name VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(50) NOT NULL UNIQUE,
+    delivery_zone_id BIGINT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    detailed_address VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (delivery_zone_id) REFERENCES delivery_zones(id) ON DELETE SET NULL
+);
+
+-- ============================================================
+-- Orders table migration: add customer_id FK
+-- Remove old inline customer columns (idempotent)
+-- ============================================================
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS route_distance_km DOUBLE PRECISION;
+
+-- Drop old inline customer/location columns if they still exist
+ALTER TABLE orders DROP COLUMN IF EXISTS customer_name;
+ALTER TABLE orders DROP COLUMN IF EXISTS customer_phone;
+ALTER TABLE orders DROP COLUMN IF EXISTS location_method;
+ALTER TABLE orders DROP COLUMN IF EXISTS delivery_zone_id;
+ALTER TABLE orders DROP COLUMN IF EXISTS whatsapp_map_link;
+ALTER TABLE orders DROP COLUMN IF EXISTS detailed_address;
+ALTER TABLE orders DROP COLUMN IF EXISTS latitude;
+ALTER TABLE orders DROP COLUMN IF EXISTS longitude;
+

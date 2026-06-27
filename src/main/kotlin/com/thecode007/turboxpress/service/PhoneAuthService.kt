@@ -42,16 +42,14 @@ class PhoneAuthService(
         var requiresPasswordSetup = false
         var requiresPasswordEntry = false
 
-        if (profileInfo.status == VerificationStatus.APPROVED) {
-            val hasPassword = !user.passwordHash.isNullOrEmpty()
-            if (!hasPassword) {
-                requiresPasswordSetup = true
-            } else {
-                if (request.password.isNullOrEmpty()) {
-                    requiresPasswordEntry = true
-                } else if (!passwordEncoder.matches(request.password, user.passwordHash)) {
-                    throw BadCredentialsException("Invalid password")
-                }
+        val hasPassword = !user.passwordHash.isNullOrEmpty()
+        if (!hasPassword) {
+            requiresPasswordSetup = true
+        } else {
+            if (request.password.isNullOrEmpty()) {
+                requiresPasswordEntry = true
+            } else if (!passwordEncoder.matches(request.password, user.passwordHash)) {
+                throw BadCredentialsException("Invalid password")
             }
         }
 

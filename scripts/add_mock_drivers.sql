@@ -43,7 +43,7 @@ BEGIN
 
         -- 3. Insert driver profile
         INSERT INTO driver_profiles (
-            user_id, display_name, is_available, status, verification_status, current_location, rating
+            user_id, display_name,  status, verification_status, current_location, rating
         ) VALUES (
             new_user_id,
             'Mock Driver ' || rand_suffix,
