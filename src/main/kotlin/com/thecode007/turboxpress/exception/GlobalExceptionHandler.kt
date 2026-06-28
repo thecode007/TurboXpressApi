@@ -27,6 +27,17 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response)
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException::class)
+    fun handleNoResourceFound(
+        ex: org.springframework.web.servlet.resource.NoResourceFoundException,
+        request: HttpServletRequest
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        val response = BaseResponse.notFound<Nothing>(
+            message = "Endpoint not found: ${request.method} ${request.requestURI}"
+        )
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response)
+    }
+
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgument(
         ex: IllegalArgumentException,
@@ -124,6 +135,7 @@ class GlobalExceptionHandler {
         ex: Exception,
         request: HttpServletRequest
     ): ResponseEntity<BaseResponse<Nothing>> {
+        ex.printStackTrace() // Print the exact message and stacktrace to the console
         val stackTrace = ex.stackTraceToString()
         val response = BaseResponse.error<Nothing>(
             message = "Error: ${ex.message} \n\n StackTrace: $stackTrace",

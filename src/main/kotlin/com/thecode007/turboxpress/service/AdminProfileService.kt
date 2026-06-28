@@ -183,7 +183,7 @@ class AdminProfileService(
             ownerRepository.save(
                 Owner(
                     phoneNumber = user.phoneNumber,
-                    fullName = user.fullName,
+                    fullName = profile.businessName ?: user.fullName,
                     passwordHash = user.passwordHash ?: "",
                     profilePictureUrl = profile.profilePictureUrl,
                     isActive = user.isActive
@@ -243,7 +243,7 @@ class AdminProfileService(
                 ownerRepository.save(
                     Owner(
                         phoneNumber = user.phoneNumber,
-                        fullName = user.fullName,
+                        fullName = profile.businessName ?: user.fullName,
                         passwordHash = user.passwordHash ?: "",
                         profilePictureUrl = profile.profilePictureUrl,
                         isActive = user.isActive

@@ -37,6 +37,15 @@ class OrderController(private val orderService: OrderService) {
             .body(BaseResponse.created("Order created successfully", order))
     }
 
+    @PutMapping("/{id}")
+    fun updateOrder(
+        @PathVariable id: Long, 
+        @RequestBody request: OrderCreateRequest
+    ): ResponseEntity<BaseResponse<OrderResponse>> {
+        val order = orderService.updateOrder(id, request)
+        return ResponseEntity.ok(BaseResponse.success("Order updated successfully", order))
+    }
+
     @GetMapping("/{id}")
     fun getOrderById(@PathVariable id: Long): ResponseEntity<BaseResponse<OrderResponse>> {
         val order = orderService.getOrderById(id)

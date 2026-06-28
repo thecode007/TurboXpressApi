@@ -135,9 +135,58 @@ class OrderService(
         orderItemRepository.saveAll(orderItems)
         savedOrder.totalAmount = totalAmount
         savedOrder.platformCommissionAmount = totalAmount * restaurant.commissionRate
-        savedOrder.items = orderItems.toMutableList()
+        savedOrder.items.addAll(orderItems)
         val finalOrder = orderRepository.save(savedOrder)
 
+        return mapToResponse(finalOrder)
+    }
+
+    @Transactional
+    fun updateOrder(id: Long, request: OrderCreateRequest): OrderResponse {
+        val order = orderRepository.findById(id)
+            .orElseThrow { ResourceNotFoundException("Order not found: $id") }
+
+        val restaurant = restaurantRepository.findById(request.restaurantId)
+            .orElseThrow { ResourceNotFoundException("Restaurant not found: ${request.restaurantId}") }
+
+        val customer = resolveCustomer(request)
+
+        order.restaurant = restaurant
+        order.customer = customer
+        order.routeDistanceKm = request.routeDistanceKm
+        order.deliveryFee = request.deliveryFee
+
+        // Remove old items
+        orderItemRepository.deleteAll(order.items)
+        order.items.clear()
+
+        var totalAmount = 0.0
+
+        val newItems = request.items.map { itemRequest ->
+            val menuItem = restaurantItemRepository.findById(itemRequest.menuItemId)
+                .orElseThrow { ResourceNotFoundException("Menu item not found: ${itemRequest.menuItemId}") }
+
+            if (menuItem.restaurant.id != restaurant.id) {
+                throw IllegalArgumentException("Menu item ${menuItem.id} does not belong to restaurant ${restaurant.id}")
+            }
+
+            val priceAtOrder = menuItem.price
+            totalAmount += priceAtOrder * itemRequest.quantity
+
+            OrderItem(
+                order = order,
+                menuItem = menuItem,
+                quantity = itemRequest.quantity,
+                priceAtOrder = priceAtOrder
+            )
+        }
+
+        orderItemRepository.saveAll(newItems)
+        order.items.addAll(newItems)
+        order.totalAmount = totalAmount
+        order.platformCommissionAmount = totalAmount * restaurant.commissionRate
+
+        val finalOrder = orderRepository.save(order)
         return mapToResponse(finalOrder)
     }
 

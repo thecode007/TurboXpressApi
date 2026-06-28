@@ -34,8 +34,13 @@ class AdminProfileController(
     @GetMapping("/pending")
     fun getPendingProfiles(
         @RequestParam role: String
-    ): ResponseEntity<List<PendingProfileDto>> {
-        return ResponseEntity.ok(adminProfileService.getPendingProfiles(role))
+    ): ResponseEntity<Any> {
+        return try {
+            ResponseEntity.ok(adminProfileService.getPendingProfiles(role))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ResponseEntity.internalServerError().body(mapOf("error" to e.message, "stacktrace" to e.stackTraceToString()))
+        }
     }
 
     @PostMapping("/approve")

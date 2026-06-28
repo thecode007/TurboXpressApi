@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/delivery-guys")
+@RequestMapping("/api/admin/drivers")
 class DriverFinanceController(
     private val financeService: FinanceService
 ) {

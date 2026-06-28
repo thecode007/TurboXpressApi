@@ -114,6 +114,7 @@ ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS default_address_label VAR
 CREATE TABLE IF NOT EXISTS driver_profiles (
     user_id VARCHAR(36) PRIMARY KEY,
     display_name VARCHAR(255),
+    profile_picture_url VARCHAR(500),
     id_document_url VARCHAR(500),
     criminal_record_url VARCHAR(500),
     license_number VARCHAR(100),
@@ -142,6 +143,7 @@ CREATE INDEX IF NOT EXISTS idx_driver_profiles_location ON driver_profiles USING
 -- Idempotent migrations for driver profiles
 ALTER TABLE driver_profiles DROP COLUMN IF EXISTS is_available;
 ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS online_status VARCHAR(20) NOT NULL DEFAULT 'OFFLINE';
+ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS profile_picture_url VARCHAR(500);
 
 -- Owner Profiles
 CREATE TABLE IF NOT EXISTS owner_profiles (
