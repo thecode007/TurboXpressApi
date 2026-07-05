@@ -42,6 +42,7 @@ class SecurityConfig(
                     .requestMatchers("/api/media/profiles/**").permitAll()
                     .requestMatchers("/api/health").permitAll()
                     .requestMatchers("/api/v1/pricing/**").permitAll()
+                    .requestMatchers("/ws/**").permitAll()
 
                     // -- Role-scoped mobile app endpoints ----------------------------------
                     // URL-level role check is a FIRST LINE of defence.

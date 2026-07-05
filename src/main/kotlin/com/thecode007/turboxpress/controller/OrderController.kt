@@ -29,6 +29,15 @@ class OrderController(private val orderService: OrderService) {
         }
     }
 
+    @GetMapping("/driver/history")
+    fun getDriverHistory(
+        @AuthenticationPrincipal principal: PermissionDecorator
+    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        val userId = UUID.fromString(principal.getUserId())
+        val orders = orderService.getDriverOrderHistory(userId)
+        return ResponseEntity.ok(BaseResponse.success("Driver history retrieved successfully", orders))
+    }
+
     @PostMapping
     fun createOrder(@RequestBody request: OrderCreateRequest): ResponseEntity<BaseResponse<OrderResponse>> {
         val order = orderService.createOrder(request)

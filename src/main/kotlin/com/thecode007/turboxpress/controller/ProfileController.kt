@@ -29,6 +29,21 @@ class ProfileController(
         return ResponseEntity.ok("\"$status\"")
     }
 
+    @GetMapping("/me")
+    fun getMyProfile(
+        @AuthenticationPrincipal principal: PermissionDecorator
+    ): ResponseEntity<BaseResponse<com.thecode007.turboxpress.dto.ProfileResponseDto>> {
+        val userId = UUID.fromString(principal.getUserId())
+        val role = principal.getRoleNames().firstOrNull() ?: "CUSTOMER"
+        return try {
+            val profile = profileService.getMyProfile(userId, role)
+            ResponseEntity.ok(BaseResponse.success("Profile retrieved", profile))
+        } catch (e: Exception) {
+            logger.error("Failed to get profile for user: $userId", e)
+            ResponseEntity.internalServerError().body(BaseResponse.error("Failed to get profile: ${e.message}"))
+        }
+    }
+
     @PostMapping("/upload", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun uploadDocuments(
         @AuthenticationPrincipal principal: PermissionDecorator,

@@ -9,6 +9,7 @@ data class OrderResponse(
     val restaurantName: String,
     val driverPhoneNumber: String?,
     val driverFullName: String?,
+    val driverId: String?,
     val status: OrderStatus,
     val totalAmount: Double,
     val items: List<OrderItemResponse>,

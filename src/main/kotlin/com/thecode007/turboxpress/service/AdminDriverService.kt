@@ -134,7 +134,7 @@ class AdminDriverService(
         return DriverResponse(
             phoneNumber = this.user.phoneNumber,
             username = this.user.username ?: this.user.phoneNumber,
-            fullName = this.user.fullName,
+            fullName = this.displayName ?: this.user.fullName,
             profilePictureUrl = this.profilePictureUrl,
             isActive = this.user.isActive,
             monthlySubFee = this.monthlySubFee,

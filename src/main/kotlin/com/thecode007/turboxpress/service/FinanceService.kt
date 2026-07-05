@@ -141,7 +141,7 @@ class FinanceService(
 
         return DriverFinanceSummary(
             phoneNumber = user.phoneNumber,
-            fullName = user.fullName,
+            fullName = driver.displayName ?: user.fullName,
             deliveryFeesOwed = deliveryFeesOwed,
             subFeeOwed = driver.adminDebtBalance.toDouble(), // Repurpose for UI compatibility
             adminDebtBalance = driver.adminDebtBalance.toDouble(),

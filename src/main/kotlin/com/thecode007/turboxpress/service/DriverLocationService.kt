@@ -10,10 +10,13 @@ import org.locationtech.jts.geom.PrecisionModel
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+import com.thecode007.turboxpress.controller.DriverLocationWebSocketHandler
+
 @Service
 class DriverLocationService(
     private val driverProfileRepository: DriverProfileRepository,
-    private val restaurantRepository: RestaurantRepository
+    private val restaurantRepository: RestaurantRepository,
+    private val driverLocationWebSocketHandler: DriverLocationWebSocketHandler
 ) {
     // SRID 4326 is standard for WGS 84 (GPS coordinates)
     private val geometryFactory = GeometryFactory(PrecisionModel(), 4326)
@@ -28,6 +31,12 @@ class DriverLocationService(
         
         driverProfile.currentLocation = point
         driverProfileRepository.save(driverProfile)
+        
+        driverLocationWebSocketHandler.broadcastLocation(
+            driverId = driverProfile.userId.toString(),
+            latitude = request.latitude,
+            longitude = request.longitude
+        )
     }
 
     @Transactional(readOnly = true)

@@ -26,6 +26,44 @@ class ProfileService(
         }
     }
 
+    fun getMyProfile(userId: UUID, role: String): com.thecode007.turboxpress.dto.ProfileResponseDto {
+        return when (role.uppercase()) {
+            "CUSTOMER" -> {
+                val profile = customerProfileRepository.findById(userId).orElseThrow { Exception("Customer profile not found") }
+                val parts = profile.displayName?.split(" ", limit = 2) ?: listOf("", "")
+                val firstName = parts.getOrNull(0) ?: ""
+                val lastName = parts.getOrNull(1) ?: ""
+                com.thecode007.turboxpress.dto.CustomerProfileResponseDto(
+                    firstName = firstName,
+                    lastName = lastName,
+                    profilePicUrl = profile.profilePictureUrl
+                )
+            }
+            "COURIER" -> {
+                val profile = driverProfileRepository.findById(userId).orElseThrow { Exception("Driver profile not found") }
+                val parts = profile.displayName?.split(" ", limit = 2) ?: listOf("", "")
+                val firstName = parts.getOrNull(0) ?: ""
+                val lastName = parts.getOrNull(1) ?: ""
+                com.thecode007.turboxpress.dto.DriverProfileResponseDto(
+                    firstName = firstName,
+                    lastName = lastName,
+                    nationality = "Lebanese", // Defaulting to Lebanese as requested by app design previously
+                    profilePicUrl = profile.profilePictureUrl,
+                    document1Url = profile.idDocumentUrl,
+                    document2Url = profile.criminalRecordUrl
+                )
+            }
+            "MERCHANT" -> {
+                val profile = ownerProfileRepository.findById(userId).orElseThrow { Exception("Owner profile not found") }
+                com.thecode007.turboxpress.dto.OwnerProfileResponseDto(
+                    businessName = profile.businessName ?: "",
+                    profilePicUrl = profile.profilePictureUrl
+                )
+            }
+            else -> throw IllegalArgumentException("Invalid role")
+        }
+    }
+
     @Transactional
     fun uploadDocuments(
         userId: UUID,

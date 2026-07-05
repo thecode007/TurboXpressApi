@@ -16,7 +16,6 @@ class OrderService(
     private val driverProfileRepository: DriverProfileRepository,
     private val userRepository: UserRepository,
     private val notificationService: NotificationService,
-    private val simulationService: SimulationService,
     private val deliveryZoneRepository: DeliveryZoneRepository,
     private val customerRepository: CustomerRepository,
     private val customerProfileRepository: CustomerProfileRepository,
@@ -205,6 +204,10 @@ class OrderService(
         return orderRepository.findByCreatedAtAfterOrderByCreatedAtDesc(thirtyDaysAgo).map { mapToResponse(it) }
     }
 
+    fun getDriverOrderHistory(driverId: java.util.UUID): List<OrderResponse> {
+        return orderRepository.findByDriverIdOrderByCreatedAtDesc(driverId).map { mapToResponse(it) }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Driver assignment
     // ─────────────────────────────────────────────────────────────────────────
@@ -230,8 +233,6 @@ class OrderService(
         notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
         notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
 
-        startSimulationToRestaurant(savedOrder, driverProfile)
-
         return mapToResponse(savedOrder)
     }
 
@@ -252,8 +253,6 @@ class OrderService(
 
         notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
         notificationService.notifyDriver(savedOrder.id, nearestProfile.user.phoneNumber)
-
-        startSimulationToRestaurant(savedOrder, nearestProfile)
 
         return mapToResponse(savedOrder)
     }
@@ -321,28 +320,6 @@ class OrderService(
             }
         }
 
-        // ON_THE_WAY → simulate route to customer
-        if (status == OrderStatus.ON_THE_WAY && order.driver != null) {
-            val customer = order.customer
-            // Use pinned coordinates if available, otherwise fall back to zone centroid
-            val endLat = customer.latitude
-                ?: customer.deliveryZone?.polygon?.centroid?.y
-            val endLng = customer.longitude
-                ?: customer.deliveryZone?.polygon?.centroid?.x
-
-            if (endLat != null && endLng != null && order.driver!!.id != null) {
-                simulationService.simulateDriverMovement(
-                    orderId = order.id,
-                    driverId = order.driver!!.id!!,
-                    startLat = order.restaurant.location.y,
-                    startLng = order.restaurant.location.x,
-                    endLat = endLat,
-                    endLng = endLng,
-                    durationSeconds = 120
-                )
-            }
-        }
-
         return mapToResponse(orderRepository.save(order))
     }
 
@@ -373,28 +350,12 @@ class OrderService(
         notificationService.notifyFrontend(order.id, order.restaurant.owner.phoneNumber)
         notificationService.notifyDriver(order.id, driverProfile.user.phoneNumber)
 
-        startSimulationToRestaurant(order, driverProfile)
-
         return true
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────
-
-    private fun startSimulationToRestaurant(order: Order, driverProfile: DriverProfile) {
-        if (driverProfile.currentLocation != null && driverProfile.id != null) {
-            simulationService.simulateDriverMovement(
-                orderId = order.id,
-                driverId = driverProfile.id!!,
-                startLat = driverProfile.currentLocation!!.y,
-                startLng = driverProfile.currentLocation!!.x,
-                endLat = order.restaurant.location.y,
-                endLng = order.restaurant.location.x,
-                durationSeconds = 120
-            )
-        }
-    }
 
     private fun mapToResponse(order: Order): OrderResponse {
         val customer = order.customer
@@ -407,7 +368,8 @@ class OrderService(
             restaurantId = order.restaurant.id,
             restaurantName = order.restaurant.name,
             driverPhoneNumber = order.driver?.user?.phoneNumber,
-            driverFullName = order.driver?.user?.fullName,
+            driverFullName = order.driver?.displayName ?: order.driver?.user?.fullName,
+            driverId = order.driver?.userId?.toString(),
             status = order.status,
             totalAmount = order.totalAmount,
             items = order.items.map {
