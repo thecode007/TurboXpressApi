@@ -48,6 +48,18 @@ class Order(
     @Column(name = "route_distance_km")
     var routeDistanceKm: Double? = null,
 
+    @Column(name = "accepted_at")
+    var acceptedAt: Instant? = null,
+
+    @Column(name = "ready_at")
+    var readyAt: Instant? = null,
+
+    @Column(name = "picked_up_at")
+    var pickedUpAt: Instant? = null,
+
+    @Column(name = "delivered_at")
+    var deliveredAt: Instant? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now()
 )

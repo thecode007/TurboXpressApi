@@ -237,3 +237,8 @@ ALTER TABLE orders DROP COLUMN IF EXISTS detailed_address;
 ALTER TABLE orders DROP COLUMN IF EXISTS latitude;
 ALTER TABLE orders DROP COLUMN IF EXISTS longitude;
 
+-- New timestamp metrics for performance tracking
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_at TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS picked_up_at TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP;

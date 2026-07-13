@@ -7,6 +7,8 @@ import com.thecode007.turboxpress.service.AuthService
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import com.thecode007.turboxpress.security.decorator.PermissionDecorator
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 
 @RestController
 @RequestMapping("/api/auth")
@@ -21,7 +23,10 @@ class AuthController(
     }
 
     @PostMapping("/logout")
-    fun logout(): ResponseEntity<BaseResponse<Nothing>> {
+    fun logout(@AuthenticationPrincipal principal: PermissionDecorator?): ResponseEntity<BaseResponse<Nothing>> {
+        if (principal != null) {
+            authService.logout(principal)
+        }
         return ResponseEntity.ok(BaseResponse.success("Logout successful", null))
     }
 }

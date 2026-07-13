@@ -19,7 +19,8 @@ class OrderService(
     private val deliveryZoneRepository: DeliveryZoneRepository,
     private val customerRepository: CustomerRepository,
     private val customerProfileRepository: CustomerProfileRepository,
-    private val roleRepository: RoleRepository
+    private val roleRepository: RoleRepository,
+    private val appSettingRepository: com.thecode007.turboxpress.repository.AppSettingRepository
 ) {
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -137,6 +138,12 @@ class OrderService(
         savedOrder.items.addAll(orderItems)
         val finalOrder = orderRepository.save(savedOrder)
 
+        // Trigger broadcast if manual assignment is enabled
+        val setting = appSettingRepository.findById(1L).orElse(null)
+        if (setting != null && !setting.isAutoAssignEnabled) {
+            broadcastNextPendingOrder()
+        }
+
         return mapToResponse(finalOrder)
     }
 
@@ -219,14 +226,24 @@ class OrderService(
 
         val user = userRepository.findByPhoneNumber(driverPhoneNumber)
             .orElseThrow { ResourceNotFoundException("User not found with phone: $driverPhoneNumber") }
-        val driverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
+        val newDriverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
             ?: throw ResourceNotFoundException("Driver profile not found with phone: $driverPhoneNumber")
 
-        order.driver = driverProfile
-        order.status = OrderStatus.ACCEPTED
+        // Free up the old driver if there is one
+        val oldDriver = order.driver
+        if (oldDriver != null && oldDriver.id != newDriverProfile.id) {
+            oldDriver.status = DriverStatus.IDLE
+            driverProfileRepository.save(oldDriver)
+            
+            notificationService.notifyDriverUnassigned(order.id, oldDriver.user.phoneNumber)
+        }
 
-        driverProfile.status = DriverStatus.ON_DELIVERY
-        driverProfileRepository.save(driverProfile)
+        order.driver = newDriverProfile
+        order.status = OrderStatus.ACCEPTED
+        if (order.acceptedAt == null) order.acceptedAt = java.time.Instant.now()
+
+        newDriverProfile.status = DriverStatus.ON_DELIVERY
+        driverProfileRepository.save(newDriverProfile)
 
         val savedOrder = orderRepository.save(order)
 
@@ -246,6 +263,7 @@ class OrderService(
 
         order.driver = nearestProfile
         order.status = OrderStatus.ACCEPTED
+        if (order.acceptedAt == null) order.acceptedAt = java.time.Instant.now()
         nearestProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(nearestProfile)
 
@@ -263,15 +281,85 @@ class OrderService(
             .orElseThrow { ResourceNotFoundException("Order not found: $orderId") }
 
         val driverProfile = order.driver
-            ?: throw IllegalStateException("Order is not assigned to a driver")
+        if (driverProfile == null) {
+            // It's a broadcast order that the driver dismissed from their screen.
+            return mapToResponse(order)
+        }
 
         order.driver = null
 
-        driverProfile.onlineStatus = OnlineStatus.OFFLINE
+        driverProfile.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE
         driverProfile.status = DriverStatus.IDLE
         driverProfileRepository.save(driverProfile)
 
-        return mapToResponse(orderRepository.save(order))
+        val savedOrder = orderRepository.save(order)
+
+        // The order was rejected and goes back to the pool, trigger broadcast for others.
+        val setting = appSettingRepository.findById(1L).orElse(null)
+        if (setting != null && !setting.isAutoAssignEnabled) {
+            broadcastNextPendingOrder()
+        }
+
+        return mapToResponse(savedOrder)
+    }
+
+    @Transactional
+    fun broadcastNextPendingOrder() {
+        val targetStatuses = listOf(OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
+        val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(targetStatuses)
+        val nextOrder = pendingOrders.firstOrNull() ?: return
+
+        // Use JOIN FETCH query to eagerly load user phone numbers.
+        // Only APPROVED+ONLINE+IDLE drivers receive the broadcast.
+        val idleDrivers = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser()
+        val phones = idleDrivers.mapNotNull { it.user.phoneNumber }
+        println("Broadcasting order #${nextOrder.id} to ${phones.size} drivers: $phones")
+        if (phones.isNotEmpty()) {
+            notificationService.broadcastOrderToDrivers(nextOrder.id, phones)
+        } else {
+            println("No ONLINE+IDLE drivers found. Broadcast skipped for order #${nextOrder.id}")
+        }
+    }
+
+    @Transactional
+    fun acceptBroadcastOrder(orderId: Long, driverPhoneNumber: String): OrderResponse {
+        val order = orderRepository.findById(orderId)
+            .orElseThrow { ResourceNotFoundException("Order not found: $orderId") }
+
+        if (order.driver != null) {
+            throw IllegalStateException("ORDER_ALREADY_TAKEN")
+        }
+
+        val user = userRepository.findByPhoneNumber(driverPhoneNumber)
+            .orElseThrow { ResourceNotFoundException("User not found with phone: $driverPhoneNumber") }
+        val newDriverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
+            ?: throw ResourceNotFoundException("Driver profile not found with phone: $driverPhoneNumber")
+
+        if (newDriverProfile.status != DriverStatus.IDLE) {
+            throw IllegalStateException("Driver is not IDLE")
+        }
+
+        order.driver = newDriverProfile
+        order.status = OrderStatus.ACCEPTED
+        if (order.acceptedAt == null) order.acceptedAt = java.time.Instant.now()
+
+        newDriverProfile.status = DriverStatus.ON_DELIVERY
+        driverProfileRepository.save(newDriverProfile)
+
+        val savedOrder = orderRepository.save(order)
+
+        notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
+        notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
+
+        // Dismiss the order from all other drivers' screens
+        val otherDriverPhones = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser()
+            .mapNotNull { it.user.phoneNumber }
+        notificationService.notifyBroadcastOrderTaken(savedOrder.id, driverPhoneNumber, otherDriverPhones)
+
+        // Queue the next broadcast
+        broadcastNextPendingOrder()
+
+        return mapToResponse(savedOrder)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -283,8 +371,26 @@ class OrderService(
         val order = orderRepository.findById(orderId)
             .orElseThrow { ResourceNotFoundException("Order not found: $orderId") }
 
+        if (status == OrderStatus.ON_THE_WAY && order.driver == null) {
+            throw IllegalArgumentException("Cannot update status to ON_THE_WAY without an assigned driver")
+        }
+
         val oldStatus = order.status
         order.status = status
+
+        val now = java.time.Instant.now()
+        when (status) {
+            OrderStatus.ACCEPTED, OrderStatus.PREPARING -> if (order.acceptedAt == null) order.acceptedAt = now
+            OrderStatus.READY_FOR_PICKUP -> {
+                if (order.readyAt == null) order.readyAt = now
+                order.driver?.user?.phoneNumber?.let { driverPhone ->
+                    notificationService.notifyDriverOrderReady(order.id, driverPhone)
+                }
+            }
+            OrderStatus.ON_THE_WAY -> if (order.pickedUpAt == null) order.pickedUpAt = now
+            OrderStatus.DELIVERED -> if (order.deliveredAt == null) order.deliveredAt = now
+            else -> {}
+        }
 
         // Balance ledger
         val wasFinanciallyImpacted = oldStatus == OrderStatus.ON_THE_WAY || oldStatus == OrderStatus.DELIVERED
@@ -312,11 +418,25 @@ class OrderService(
             }
         }
 
+        // Trigger broadcast if an unassigned order is accepted/progressed by the restaurant
+        if (order.driver == null && (status == OrderStatus.ACCEPTED || status == OrderStatus.PREPARING || status == OrderStatus.READY_FOR_PICKUP)) {
+            val setting = appSettingRepository.findById(1L).orElse(null)
+            if (setting != null && !setting.isAutoAssignEnabled) {
+                broadcastNextPendingOrder()
+            }
+        }
+
         // Free up driver
         if (status == OrderStatus.DELIVERED || status == OrderStatus.CANCELLED || status == OrderStatus.REJECTED) {
             order.driver?.let { profile ->
                 profile.status = DriverStatus.IDLE
                 driverProfileRepository.save(profile)
+            }
+            
+            // Driver is now IDLE, they can receive the next broadcast
+            val setting = appSettingRepository.findById(1L).orElse(null)
+            if (setting != null && !setting.isAutoAssignEnabled) {
+                broadcastNextPendingOrder()
             }
         }
 
@@ -330,7 +450,27 @@ class OrderService(
     fun getActiveDeliveryForDriver(driverId: java.util.UUID): OrderResponse? {
         val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.ON_THE_WAY)
         val orders = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtDesc(driverId, targetStatuses)
-        return orders.firstOrNull()?.let { mapToResponse(it) }
+        val assignedOrder = orders.firstOrNull()?.let { mapToResponse(it) }
+
+        if (assignedOrder != null) {
+            return assignedOrder
+        }
+
+        // Fallback: If in manual mode, and driver is ONLINE & IDLE, serve the broadcast queue top item
+        val setting = appSettingRepository.findById(1L).orElse(null)
+        if (setting != null && !setting.isAutoAssignEnabled) {
+            val driverProfile = driverProfileRepository.findById(driverId).orElse(null)
+            if (driverProfile != null && driverProfile.status == DriverStatus.IDLE && driverProfile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
+                val broadcastStatuses = listOf(OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
+                val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(broadcastStatuses)
+                val nextOrder = pendingOrders.firstOrNull()
+                if (nextOrder != null) {
+                    return mapToResponse(nextOrder)
+                }
+            }
+        }
+
+        return null
     }
 
     @Transactional
@@ -363,6 +503,10 @@ class OrderService(
         val effectiveLat = customer.latitude ?: customer.deliveryZone?.polygon?.centroid?.y
         val effectiveLng = customer.longitude ?: customer.deliveryZone?.polygon?.centroid?.x
 
+        val zonePolygon = customer.deliveryZone?.polygon?.coordinates?.map { 
+            RoutePointDto(lat = it.y, lng = it.x) 
+        }
+
         return OrderResponse(
             id = order.id,
             restaurantId = order.restaurant.id,
@@ -386,6 +530,7 @@ class OrderService(
             customerPhone = customer.phoneNumber,
             deliveryZoneId = customer.deliveryZone?.id,
             deliveryZoneName = customer.deliveryZone?.name,
+            deliveryZonePolygon = zonePolygon,
             latitude = effectiveLat,
             longitude = effectiveLng,
             detailedAddress = customer.detailedAddress,
@@ -396,6 +541,10 @@ class OrderService(
             routeDistanceKm = order.routeDistanceKm,
             deliveryFee = order.deliveryFee,
             createdAt = order.createdAt,
+            acceptedAt = order.acceptedAt,
+            readyAt = order.readyAt,
+            pickedUpAt = order.pickedUpAt,
+            deliveredAt = order.deliveredAt,
             locationMethod = if (customer.deliveryZone != null) "DELIVERY_ZONE" else "WHATSAPP_LINK"
         )
     }

@@ -21,5 +21,8 @@ data class AppSetting(
     var pricePerKm: Double = 1.5, // Default value
 
     @Column(name = "base_fare", nullable = false, columnDefinition = "float8 default 0.0")
-    var baseFare: Double = 0.0
+    var baseFare: Double = 0.0,
+
+    @Column(name = "is_auto_assign_enabled", nullable = false, columnDefinition = "boolean default true")
+    var isAutoAssignEnabled: Boolean = true
 )

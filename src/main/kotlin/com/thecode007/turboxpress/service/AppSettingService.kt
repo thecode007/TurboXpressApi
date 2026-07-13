@@ -9,7 +9,8 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class AppSettingService(
-    private val appSettingRepository: AppSettingRepository
+    private val appSettingRepository: AppSettingRepository,
+    @org.springframework.context.annotation.Lazy private val orderService: OrderService
 ) {
 
     @Transactional
@@ -22,7 +23,8 @@ class AppSettingService(
             restaurantSubscriptionFee = setting.restaurantSubscriptionFee,
             driverSubscriptionFee = setting.driverSubscriptionFee,
             pricePerKm = setting.pricePerKm,
-            baseFare = setting.baseFare
+            baseFare = setting.baseFare,
+            isAutoAssignEnabled = setting.isAutoAssignEnabled
         )
     }
 
@@ -36,14 +38,22 @@ class AppSettingService(
         setting.driverSubscriptionFee = request.driverSubscriptionFee
         setting.pricePerKm = request.pricePerKm
         setting.baseFare = request.baseFare
+        val wasAutoAssignEnabled = setting.isAutoAssignEnabled
+        setting.isAutoAssignEnabled = request.isAutoAssignEnabled
         
         val saved = appSettingRepository.save(setting)
+
+        // Trigger manual broadcast queue if switched to manual (auto-assign disabled)
+        if (wasAutoAssignEnabled && !saved.isAutoAssignEnabled) {
+            orderService.broadcastNextPendingOrder()
+        }
         return AppSettingResponse(
             deliveryProfitPercent = saved.deliveryProfitPercent,
             restaurantSubscriptionFee = saved.restaurantSubscriptionFee,
             driverSubscriptionFee = saved.driverSubscriptionFee,
             pricePerKm = saved.pricePerKm,
-            baseFare = saved.baseFare
+            baseFare = saved.baseFare,
+            isAutoAssignEnabled = saved.isAutoAssignEnabled
         )
     }
 }

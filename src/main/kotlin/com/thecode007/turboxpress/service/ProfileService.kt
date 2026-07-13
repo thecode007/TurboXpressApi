@@ -13,7 +13,8 @@ class ProfileService(
     private val customerProfileRepository: CustomerProfileRepository,
     private val driverProfileRepository: DriverProfileRepository,
     private val ownerProfileRepository: OwnerProfileRepository,
-    private val mediaService: MediaService
+    private val mediaService: MediaService,
+    @org.springframework.context.annotation.Lazy private val orderService: OrderService
 ) {
     private val logger = LoggerFactory.getLogger(ProfileService::class.java)
 
@@ -175,5 +176,9 @@ class ProfileService(
         profile.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.valueOf(status.uppercase())
         driverProfileRepository.save(profile)
         logger.info("Updated online status to $status for driver $userId")
+
+        if (status.uppercase() == "ONLINE") {
+            orderService.broadcastNextPendingOrder()
+        }
     }
 }

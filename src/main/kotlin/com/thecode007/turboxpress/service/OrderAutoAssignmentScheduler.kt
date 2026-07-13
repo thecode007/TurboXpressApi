@@ -16,11 +16,16 @@ class OrderAutoAssignmentScheduler(
     private val orderRepository: OrderRepository,
     private val driverProfileRepository: DriverProfileRepository,
     private val orderService: OrderService,
-    private val notificationService: NotificationService
+    private val notificationService: NotificationService,
+    private val appSettingService: AppSettingService
 ) {
 
     @Scheduled(fixedDelay = 15000)
     fun assignDriversToAcceptedOrders() {
+        if (!appSettingService.getSettings().isAutoAssignEnabled) {
+            return
+        }
+
         val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
         val unassignedOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(targetStatuses)
 

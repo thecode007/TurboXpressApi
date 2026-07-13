@@ -7,6 +7,9 @@ import com.thecode007.turboxpress.repository.UserRepository
 import com.thecode007.turboxpress.security.JwtService
 import com.thecode007.turboxpress.security.UserPrincipal
 import com.thecode007.turboxpress.security.decorator.PermissionDecorator
+import com.thecode007.turboxpress.entity.DriverStatus
+import com.thecode007.turboxpress.entity.OnlineStatus
+import com.thecode007.turboxpress.repository.DriverProfileRepository
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 
@@ -14,7 +17,8 @@ import org.springframework.stereotype.Service
 class AuthService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
-    private val jwtService: JwtService
+    private val jwtService: JwtService,
+    private val driverProfileRepository: DriverProfileRepository
 ) {
 
     fun login(request: LoginRequest): LoginResponse {
@@ -55,5 +59,15 @@ class AuthService(
             permissions = userPrincipal.getPermissions(),
             context = userPrincipal.getContext()
         )
+    }
+
+    fun logout(userPrincipal: PermissionDecorator) {
+        val profileOpt = driverProfileRepository.findByUserId(java.util.UUID.fromString(userPrincipal.getUserId()))
+        if (profileOpt.isPresent) {
+            val profile = profileOpt.get()
+            profile.onlineStatus = OnlineStatus.OFFLINE
+            profile.status = DriverStatus.OFFLINE
+            driverProfileRepository.save(profile)
+        }
     }
 }

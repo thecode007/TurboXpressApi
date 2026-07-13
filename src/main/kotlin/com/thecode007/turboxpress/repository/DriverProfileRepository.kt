@@ -15,6 +15,11 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     fun findByUserId(userId: UUID): Optional<DriverProfile>
     fun existsByUserId(userId: UUID): Boolean
     fun findAllByVerificationStatus(status: VerificationStatus): List<DriverProfile>
+    fun findAllByVerificationStatusAndOnlineStatusAndStatus(
+        verificationStatus: VerificationStatus,
+        onlineStatus: com.thecode007.turboxpress.entity.OnlineStatus,
+        status: com.thecode007.turboxpress.entity.DriverStatus
+    ): List<DriverProfile>
 
     /** Eagerly fetches the related User to avoid LazyInitializationException in service layer. */
     @Query("SELECT p FROM DriverProfile p JOIN FETCH p.user WHERE p.userId = :userId")
@@ -23,6 +28,10 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     /** Eagerly fetches the related User for all profiles of a given status. */
     @Query("SELECT p FROM DriverProfile p JOIN FETCH p.user WHERE p.verificationStatus = :status")
     fun findAllByVerificationStatusWithUser(status: VerificationStatus): List<DriverProfile>
+
+    /** All APPROVED+ONLINE+IDLE drivers with their user eagerly loaded (for broadcast). */
+    @Query("SELECT p FROM DriverProfile p JOIN FETCH p.user WHERE p.verificationStatus = 'APPROVED' AND p.onlineStatus = 'ONLINE' AND p.status = 'IDLE'")
+    fun findAllApprovedOnlineIdleDriversWithUser(): List<DriverProfile>
 
     /** Finds the nearest idle driver using PostGIS <-> nearest-neighbor operator. */
     @Transactional

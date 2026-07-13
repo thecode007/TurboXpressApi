@@ -23,6 +23,14 @@ class AdminDriverController(
         return ResponseEntity.ok(BaseResponse.success("Drivers retrieved successfully", response))
     }
 
+    @GetMapping("/available")
+    fun getAvailableDrivers(
+        @RequestParam(required = false) search: String?
+    ): ResponseEntity<BaseResponse<List<DriverResponse>>> {
+        val response = adminDriverService.getAvailableDrivers(search)
+        return ResponseEntity.ok(BaseResponse.success("Available drivers retrieved successfully", response))
+    }
+
     @GetMapping("/{phoneNumber}")
     fun getDriverByPhone(@PathVariable phoneNumber: String): ResponseEntity<BaseResponse<DriverResponse>> {
         val driver = adminDriverService.getDriverByPhone(phoneNumber)

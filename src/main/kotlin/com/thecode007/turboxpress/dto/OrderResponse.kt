@@ -19,6 +19,7 @@ data class OrderResponse(
     val customerPhone: String,
     val deliveryZoneId: Long?,
     val deliveryZoneName: String?,
+    val deliveryZonePolygon: List<RoutePointDto>? = null,
     val latitude: Double?,
     val longitude: Double?,
     val detailedAddress: String?,
@@ -30,5 +31,9 @@ data class OrderResponse(
     val driverLng: Double?,
     val routeDistanceKm: Double?,
     val deliveryFee: Double,
-    val createdAt: Instant
+    val createdAt: Instant,
+    val acceptedAt: Instant? = null,
+    val readyAt: Instant? = null,
+    val pickedUpAt: Instant? = null,
+    val deliveredAt: Instant? = null
 )

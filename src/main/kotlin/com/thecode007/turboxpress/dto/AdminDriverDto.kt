@@ -9,6 +9,7 @@ data class DriverResponse(
     val profilePictureUrl: String?,
     @field:JsonProperty("isActive")
     val isActive: Boolean,
+    val onlineStatus: String,
     val monthlySubFee: Double,
     val billingCycle: String,
     val nextBillingDate: String?,

@@ -62,6 +62,27 @@ class AdminDriverService(
     }
 
     @Transactional(readOnly = true)
+    fun getAvailableDrivers(search: String?): List<DriverResponse> {
+        val profiles = driverProfileRepository.findAllByVerificationStatusAndOnlineStatusAndStatus(
+            VerificationStatus.APPROVED,
+            com.thecode007.turboxpress.entity.OnlineStatus.ONLINE,
+            com.thecode007.turboxpress.entity.DriverStatus.IDLE
+        )
+
+        val filtered = if (!search.isNullOrBlank()) {
+            profiles.filter {
+                it.user.phoneNumber.contains(search, ignoreCase = true) ||
+                (it.user.fullName.contains(search, ignoreCase = true)) ||
+                (it.displayName?.contains(search, ignoreCase = true) == true)
+            }
+        } else {
+            profiles
+        }
+
+        return filtered.map { it.toDriverResponse() }
+    }
+
+    @Transactional(readOnly = true)
     fun getDriverByPhone(phoneNumber: String): DriverResponse {
         val user = userRepository.findByPhoneNumber(phoneNumber)
             .orElseThrow { ResourceNotFoundException("Driver not found with phone: $phoneNumber") }
@@ -137,6 +158,7 @@ class AdminDriverService(
             fullName = this.displayName ?: this.user.fullName,
             profilePictureUrl = this.profilePictureUrl,
             isActive = this.user.isActive,
+            onlineStatus = this.onlineStatus.name,
             monthlySubFee = this.monthlySubFee,
             billingCycle = this.billingCycle.name,
             nextBillingDate = this.nextBillingDate?.toString(),

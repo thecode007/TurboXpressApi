@@ -92,6 +92,20 @@ class OrderController(private val orderService: OrderService) {
         return ResponseEntity.ok(BaseResponse.success("Order rejected successfully", order))
     }
 
+    @PostMapping("/{id}/accept-broadcast")
+    fun acceptBroadcastOrder(
+        @PathVariable id: Long,
+        @AuthenticationPrincipal principal: PermissionDecorator
+    ): ResponseEntity<BaseResponse<OrderResponse>> {
+        return try {
+            val driverPhone = principal.username
+            val order = orderService.acceptBroadcastOrder(id, driverPhone)
+            ResponseEntity.ok(BaseResponse.success("Order accepted successfully", order))
+        } catch (e: IllegalStateException) {
+            ResponseEntity.badRequest().body(BaseResponse.error(e.message ?: "Could not accept order"))
+        }
+    }
+
     @PatchMapping("/{id}/status")
     fun updateOrderStatus(
         @PathVariable id: Long,
