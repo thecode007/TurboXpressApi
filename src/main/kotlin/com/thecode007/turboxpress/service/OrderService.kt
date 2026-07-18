@@ -256,6 +256,7 @@ class OrderService(
         }
 
         order.driver = newDriverProfile
+        order.deliveryStatus = DeliveryStatus.ASSIGNED
 
         newDriverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(newDriverProfile)
@@ -284,6 +285,7 @@ class OrderService(
             ?: throw ResourceNotFoundException("No idle drivers available near the restaurant")
 
         order.driver = nearestProfile
+        order.deliveryStatus = DeliveryStatus.ASSIGNED
         nearestProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(nearestProfile)
 
@@ -332,7 +334,7 @@ class OrderService(
 
     @Transactional
     fun broadcastNextPendingOrder() {
-        val targetStatuses = listOf(OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
+        val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
         val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(targetStatuses)
         val nextOrder = pendingOrders.firstOrNull() ?: return
 
@@ -367,6 +369,7 @@ class OrderService(
         }
 
         order.driver = newDriverProfile
+        order.deliveryStatus = DeliveryStatus.ASSIGNED
 
         newDriverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(newDriverProfile)
@@ -424,19 +427,7 @@ class OrderService(
             else -> {}
         }
 
-        // Balance ledger
-        val wasFinanciallyImpacted = oldStatus == OrderStatus.ON_THE_WAY || oldStatus == OrderStatus.DELIVERED
-        val isFinanciallyImpacted = status == OrderStatus.ON_THE_WAY || status == OrderStatus.DELIVERED
-
-        if (isFinanciallyImpacted && !wasFinanciallyImpacted) {
-            val restaurant = order.restaurant
-            restaurant.balance = restaurant.balance.add(java.math.BigDecimal.valueOf(order.deliveryFee))
-            restaurantRepository.save(restaurant)
-        } else if (!isFinanciallyImpacted && wasFinanciallyImpacted) {
-            val restaurant = order.restaurant
-            restaurant.balance = restaurant.balance.subtract(java.math.BigDecimal.valueOf(order.deliveryFee))
-            restaurantRepository.save(restaurant)
-        }
+        // Ledger balancing has been removed from restaurant based on new business rule
 
         // DELIVERED → pin exact coordinates on the customer record
         if (status == OrderStatus.DELIVERED) {
@@ -484,6 +475,78 @@ class OrderService(
         return response
     }
 
+    @Transactional
+    fun updateDeliveryStatus(orderId: Long, status: DeliveryStatus): OrderResponse {
+        val order = orderRepository.findById(orderId)
+            .orElseThrow { ResourceNotFoundException("Order not found: $orderId") }
+
+        order.deliveryStatus = status
+
+        val now = java.time.Instant.now()
+        when (status) {
+            DeliveryStatus.AT_RESTAURANT -> {
+                if (order.driverArrivedAtRestaurantAt == null) order.driverArrivedAtRestaurantAt = now
+            }
+            DeliveryStatus.ON_THE_WAY -> {
+                if (order.pickedUpAt == null) order.pickedUpAt = now
+                order.status = OrderStatus.ON_THE_WAY
+            }
+            DeliveryStatus.DELIVERED -> {
+                if (order.deliveredAt == null) order.deliveredAt = now
+                order.status = OrderStatus.DELIVERED
+                
+                // DELIVERED → pin exact coordinates on the customer record
+                order.driver?.let { driverProfile ->
+                    if (driverProfile.currentLocation != null) {
+                        val customer = order.customer
+                        customer.latitude = driverProfile.currentLocation!!.y
+                        customer.longitude = driverProfile.currentLocation!!.x
+                        customerRepository.save(customer)
+                    }
+                }
+                
+                // Free up driver
+                order.driver?.let { profile ->
+                    profile.status = DriverStatus.IDLE
+                    driverProfileRepository.save(profile)
+                }
+                
+                // Queue next broadcast
+                val setting = appSettingRepository.findById(1L).orElse(null)
+                if (setting != null && !setting.isAutoAssignEnabled) {
+                    broadcastNextPendingOrder()
+                }
+            }
+            DeliveryStatus.CANCELLED -> {
+                order.status = OrderStatus.CANCELLED
+                
+                // Free up driver
+                order.driver?.let { profile ->
+                    profile.status = DriverStatus.IDLE
+                    driverProfileRepository.save(profile)
+                }
+                
+                // Queue next broadcast
+                val setting = appSettingRepository.findById(1L).orElse(null)
+                if (setting != null && !setting.isAutoAssignEnabled) {
+                    broadcastNextPendingOrder()
+                }
+            }
+            else -> {}
+        }
+
+        val savedOrder = orderRepository.save(order)
+        val response = mapToResponse(savedOrder)
+        orderEventBroadcaster.broadcast(
+            type = "DELIVERY_STATUS_CHANGED",
+            orderId = savedOrder.id!!,
+            status = savedOrder.deliveryStatus.name,
+            customerName = savedOrder.customer.fullName,
+            restaurantName = savedOrder.restaurant.name
+        )
+        return response
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Active delivery query
     // ─────────────────────────────────────────────────────────────────────────
@@ -502,7 +565,7 @@ class OrderService(
         if (setting != null && !setting.isAutoAssignEnabled) {
             val driverProfile = driverProfileRepository.findById(driverId).orElse(null)
             if (driverProfile != null && driverProfile.status == DriverStatus.IDLE && driverProfile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
-                val broadcastStatuses = listOf(OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
+                val broadcastStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
                 val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(broadcastStatuses)
                 val nextOrder = pendingOrders.firstOrNull()
                 if (nextOrder != null) {
@@ -523,6 +586,7 @@ class OrderService(
         val driverProfile = driverProfileRepository.findById(driverProfileId).orElse(null) ?: return false
 
         order.driver = driverProfile
+        order.deliveryStatus = DeliveryStatus.ASSIGNED
         orderRepository.save(order)
 
         driverProfile.status = DriverStatus.ON_DELIVERY
@@ -556,6 +620,8 @@ class OrderService(
             driverFullName = order.driver?.displayName ?: order.driver?.user?.fullName,
             driverId = order.driver?.userId?.toString(),
             status = order.status,
+            deliveryStatus = order.deliveryStatus,
+            driverArrivedAtRestaurantAt = order.driverArrivedAtRestaurantAt,
             totalAmount = order.totalAmount,
             items = order.items.map {
                 OrderItemResponse(

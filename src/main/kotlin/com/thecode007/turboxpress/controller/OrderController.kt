@@ -125,4 +125,13 @@ class OrderController(
         val order = orderService.updateOrderStatus(id, status)
         return ResponseEntity.ok(BaseResponse.success("Order status updated successfully", order))
     }
+
+    @PatchMapping("/{id}/delivery-status")
+    fun updateDeliveryStatus(
+        @PathVariable id: Long,
+        @RequestParam status: com.thecode007.turboxpress.entity.DeliveryStatus
+    ): ResponseEntity<BaseResponse<OrderResponse>> {
+        val order = orderService.updateDeliveryStatus(id, status)
+        return ResponseEntity.ok(BaseResponse.success("Delivery status updated successfully", order))
+    }
 }

@@ -25,7 +25,14 @@ class Order(
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    var status: OrderStatus = OrderStatus.PENDING,
+    var status: OrderStatus = OrderStatus.PREPARING,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_status", nullable = false)
+    var deliveryStatus: DeliveryStatus = DeliveryStatus.PENDING,
+
+    @Column(name = "driver_arrived_at_restaurant_at")
+    var driverArrivedAtRestaurantAt: Instant? = null,
 
     @Column(name = "total_amount", nullable = false)
     var totalAmount: Double = 0.0,

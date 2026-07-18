@@ -11,6 +11,8 @@ data class OrderResponse(
     val driverFullName: String?,
     val driverId: String?,
     val status: OrderStatus,
+    val deliveryStatus: com.thecode007.turboxpress.entity.DeliveryStatus,
+    val driverArrivedAtRestaurantAt: Instant?,
     val totalAmount: Double,
     val items: List<OrderItemResponse>,
     // Customer info (denormalised from the customers table for easy reading)
