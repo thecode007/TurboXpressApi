@@ -24,12 +24,34 @@ class OrderEventBroadcaster {
     /**
      * Register a new SSE emitter for an incoming desktop client connection.
      * Timeout is set to 0 (infinite) — the client will reconnect on drop.
+     * Immediately sends a SYNC event with the current active orders for state reconciliation.
      */
-    fun register(): SseEmitter {
+    fun register(initialOrders: List<com.thecode007.turboxpress.dto.OrderResponse>): SseEmitter {
         val emitter = SseEmitter(0L) // 0 = no server-side timeout
 
         emitters.add(emitter)
         logger.info("SSE client connected. Total active: ${emitters.size}")
+
+        // Send the SYNC event asynchronously so the controller can return the emitter
+        Thread {
+            try {
+                // Give Spring Web MVC a tiny moment to commit the response and establish the stream
+                Thread.sleep(200)
+                
+                val payload = mapOf(
+                    "type" to "SYNC",
+                    "orders" to initialOrders,
+                    "timestamp" to System.currentTimeMillis()
+                )
+                emitter.send(
+                    SseEmitter.event()
+                        .name("order-event")
+                        .data(objectMapper.writeValueAsString(payload))
+                )
+            } catch (e: Exception) {
+                logger.warn("Failed to send SYNC event: ${e.message}")
+            }
+        }.start()
 
         // Clean up on completion, timeout, or error
         val cleanup = Runnable {

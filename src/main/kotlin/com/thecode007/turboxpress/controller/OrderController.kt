@@ -36,7 +36,8 @@ class OrderController(
 
     @GetMapping("/events", produces = ["text/event-stream"])
     fun streamOrderEvents(): SseEmitter {
-        return orderEventBroadcaster.register()
+        val activeOrders = orderService.getAllOrders()
+        return orderEventBroadcaster.register(activeOrders)
     }
 
     @GetMapping("/driver/history")
