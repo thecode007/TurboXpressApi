@@ -20,7 +20,8 @@ class OrderService(
     private val customerRepository: CustomerRepository,
     private val customerProfileRepository: CustomerProfileRepository,
     private val roleRepository: RoleRepository,
-    private val appSettingRepository: com.thecode007.turboxpress.repository.AppSettingRepository
+    private val appSettingRepository: com.thecode007.turboxpress.repository.AppSettingRepository,
+    private val orderEventBroadcaster: OrderEventBroadcaster
 ) {
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -144,7 +145,15 @@ class OrderService(
             broadcastNextPendingOrder()
         }
 
-        return mapToResponse(finalOrder)
+        val response = mapToResponse(finalOrder)
+        orderEventBroadcaster.broadcast(
+            type = "ORDER_CREATED",
+            orderId = finalOrder.id!!,
+            status = finalOrder.status.name,
+            customerName = finalOrder.customer.fullName,
+            restaurantName = finalOrder.restaurant.name
+        )
+        return response
     }
 
     @Transactional
@@ -193,7 +202,15 @@ class OrderService(
         order.platformCommissionAmount = totalAmount * restaurant.commissionRate
 
         val finalOrder = orderRepository.save(order)
-        return mapToResponse(finalOrder)
+        val response = mapToResponse(finalOrder)
+        orderEventBroadcaster.broadcast(
+            type = "ORDER_UPDATED",
+            orderId = finalOrder.id!!,
+            status = finalOrder.status.name,
+            customerName = finalOrder.customer.fullName,
+            restaurantName = finalOrder.restaurant.name
+        )
+        return response
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -239,8 +256,6 @@ class OrderService(
         }
 
         order.driver = newDriverProfile
-        order.status = OrderStatus.ACCEPTED
-        if (order.acceptedAt == null) order.acceptedAt = java.time.Instant.now()
 
         newDriverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(newDriverProfile)
@@ -250,7 +265,14 @@ class OrderService(
         notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
         notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
 
-        return mapToResponse(savedOrder)
+        val response = mapToResponse(savedOrder)
+        orderEventBroadcaster.broadcast(
+            type = "DRIVER_ASSIGNED",
+            orderId = savedOrder.id!!,
+            status = savedOrder.status.name,
+            driverName = newDriverProfile.user.fullName
+        )
+        return response
     }
 
     @Transactional
@@ -262,8 +284,6 @@ class OrderService(
             ?: throw ResourceNotFoundException("No idle drivers available near the restaurant")
 
         order.driver = nearestProfile
-        order.status = OrderStatus.ACCEPTED
-        if (order.acceptedAt == null) order.acceptedAt = java.time.Instant.now()
         nearestProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(nearestProfile)
 
@@ -272,7 +292,14 @@ class OrderService(
         notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
         notificationService.notifyDriver(savedOrder.id, nearestProfile.user.phoneNumber)
 
-        return mapToResponse(savedOrder)
+        val response = mapToResponse(savedOrder)
+        orderEventBroadcaster.broadcast(
+            type = "DRIVER_ASSIGNED",
+            orderId = savedOrder.id!!,
+            status = savedOrder.status.name,
+            driverName = nearestProfile.user.fullName
+        )
+        return response
     }
 
     @Transactional
@@ -340,8 +367,6 @@ class OrderService(
         }
 
         order.driver = newDriverProfile
-        order.status = OrderStatus.ACCEPTED
-        if (order.acceptedAt == null) order.acceptedAt = java.time.Instant.now()
 
         newDriverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(newDriverProfile)
@@ -359,7 +384,14 @@ class OrderService(
         // Queue the next broadcast
         broadcastNextPendingOrder()
 
-        return mapToResponse(savedOrder)
+        val response = mapToResponse(savedOrder)
+        orderEventBroadcaster.broadcast(
+            type = "DRIVER_ASSIGNED",
+            orderId = savedOrder.id!!,
+            status = savedOrder.status.name,
+            driverName = newDriverProfile.user.fullName
+        )
+        return response
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -440,7 +472,16 @@ class OrderService(
             }
         }
 
-        return mapToResponse(orderRepository.save(order))
+        val savedOrder = orderRepository.save(order)
+        val response = mapToResponse(savedOrder)
+        orderEventBroadcaster.broadcast(
+            type = "ORDER_STATUS_CHANGED",
+            orderId = savedOrder.id!!,
+            status = savedOrder.status.name,
+            customerName = savedOrder.customer.fullName,
+            restaurantName = savedOrder.restaurant.name
+        )
+        return response
     }
 
     // ─────────────────────────────────────────────────────────────────────────

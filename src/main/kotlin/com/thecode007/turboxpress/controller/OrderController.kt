@@ -10,11 +10,16 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import com.thecode007.turboxpress.security.decorator.PermissionDecorator
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import com.thecode007.turboxpress.service.OrderEventBroadcaster
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/orders")
-class OrderController(private val orderService: OrderService) {
+class OrderController(
+    private val orderService: OrderService,
+    private val orderEventBroadcaster: OrderEventBroadcaster
+) {
 
     @GetMapping("/active-delivery")
     fun getActiveDelivery(
@@ -27,6 +32,11 @@ class OrderController(private val orderService: OrderService) {
         } else {
             ResponseEntity.ok(BaseResponse.success("No active delivery found", null))
         }
+    }
+
+    @GetMapping("/events", produces = ["text/event-stream"])
+    fun streamOrderEvents(): SseEmitter {
+        return orderEventBroadcaster.register()
     }
 
     @GetMapping("/driver/history")
