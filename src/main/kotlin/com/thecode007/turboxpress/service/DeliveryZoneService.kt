@@ -22,6 +22,7 @@ class DeliveryZoneService(
         return zones.isNotEmpty()
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getAllDeliveryZones(): List<DeliveryZoneResponse> {
         return deliveryZoneRepository.findAll().map { DeliveryZoneResponse.from(it) }
     }

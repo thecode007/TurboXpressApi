@@ -15,9 +15,11 @@ data class OrderResponse(
     val driverArrivedAtRestaurantAt: Instant?,
     val totalAmount: Double,
     val items: List<OrderItemResponse>,
+    val customDescription: String? = null,
+    val customItemsCost: Double? = null,
     // Customer info (denormalised from the customers table for easy reading)
     val customerId: Long,
-    val customerName: String,
+    val customerName: String?,
     val customerPhone: String,
     val deliveryZoneId: Long?,
     val deliveryZoneName: String?,

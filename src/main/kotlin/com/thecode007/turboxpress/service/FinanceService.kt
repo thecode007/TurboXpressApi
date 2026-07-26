@@ -24,6 +24,7 @@ class FinanceService(
     private val userRepository: UserRepository
 ) {
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getRestaurantSummary(restaurantId: Long): RestaurantFinanceSummary {
         val restaurant = restaurantRepository.findById(restaurantId)
             .orElseThrow { ResourceNotFoundException("Restaurant not found with id: $restaurantId") }
@@ -114,6 +115,7 @@ class FinanceService(
         return getRestaurantSummary(restaurantId)
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getDriverSummary(phoneNumber: String): DriverFinanceSummary {
         val user = userRepository.findByPhoneNumber(phoneNumber)
             .orElseThrow { ResourceNotFoundException("User not found with phone: $phoneNumber") }

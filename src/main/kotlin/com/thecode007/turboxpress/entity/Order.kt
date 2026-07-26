@@ -49,6 +49,12 @@ class Order(
     @Column(name = "is_settled_driver", nullable = false)
     var isSettledDriver: Boolean = false,
 
+    @Column(name = "custom_description")
+    var customDescription: String? = null,
+
+    @Column(name = "custom_items_cost")
+    var customItemsCost: Double? = null,
+
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
     var items: MutableList<OrderItem> = mutableListOf(),
 

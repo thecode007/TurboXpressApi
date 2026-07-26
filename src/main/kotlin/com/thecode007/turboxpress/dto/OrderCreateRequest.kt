@@ -5,10 +5,12 @@ data class OrderCreateRequest(
     val items: List<OrderItemRequest>,
     /** Customer phone number — used to look up or create the customer record. */
     val customerPhone: String,
-    val customerName: String,
+    val customerName: String? = null,
     /** Optional: override the customer's zone for this order (also saves back to customer). */
     val deliveryZoneId: Long? = null,
     val detailedAddress: String? = null,
     val routeDistanceKm: Double? = null,
-    val deliveryFee: Double = 0.0
+    val deliveryFee: Double = 0.0,
+    val customDescription: String? = null,
+    val customItemsCost: Double? = null
 )

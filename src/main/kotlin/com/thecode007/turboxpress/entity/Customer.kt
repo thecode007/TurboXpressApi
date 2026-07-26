@@ -25,8 +25,8 @@ class Customer(
     @Column(name = "user_id", columnDefinition = "VARCHAR(36)")
     var userId: UUID? = null,
 
-    @Column(name = "full_name", nullable = false, length = 255)
-    var fullName: String,
+    @Column(name = "full_name", length = 255)
+    var fullName: String? = null,
 
     @Column(name = "phone_number", nullable = false, unique = true, length = 50)
     var phoneNumber: String,

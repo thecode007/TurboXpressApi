@@ -71,7 +71,7 @@ class CustomerController(
     private fun com.thecode007.turboxpress.entity.Customer.toDto() = CustomerSearchResponse(
         id = id,
         userId = userId,
-        fullName = fullName,
+        fullName = fullName ?: "",
         phoneNumber = phoneNumber,
         deliveryZoneId = deliveryZone?.id,
         deliveryZoneName = deliveryZone?.name,

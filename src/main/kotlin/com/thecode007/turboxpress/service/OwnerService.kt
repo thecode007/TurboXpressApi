@@ -18,6 +18,7 @@ class OwnerService(
     private val mediaService: MediaService
 ) {
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getAllOwners(pageable: Pageable): PageResponse<OwnerResponse> {
         val page = ownerRepository.findAll(pageable)
         val responses = page.content.map { it.toResponse() }
@@ -32,12 +33,14 @@ class OwnerService(
         )
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getOwnerByPhone(phoneNumber: String): OwnerResponse {
         val owner = ownerRepository.findById(phoneNumber)
             .orElseThrow { UserNotFoundException("Owner not found with phone: $phoneNumber") }
         return owner.toResponse()
     }
     
+    @org.springframework.transaction.annotation.Transactional
     fun createOwner(request: CreateOwnerRequest): OwnerResponse {
         // Check if phone number already exists
         if (ownerRepository.existsById(request.phoneNumber)) {
@@ -56,6 +59,7 @@ class OwnerService(
         return saved.toResponse()
     }
     
+    @org.springframework.transaction.annotation.Transactional
     fun updateOwner(phoneNumber: String, request: UpdateOwnerRequest): OwnerResponse {
         val owner = ownerRepository.findById(phoneNumber)
             .orElseThrow { UserNotFoundException("Owner not found with phone: $phoneNumber") }
@@ -74,6 +78,7 @@ class OwnerService(
         return updated.toResponse()
     }
     
+    @org.springframework.transaction.annotation.Transactional
     fun deleteOwner(phoneNumber: String) {
         val owner = ownerRepository.findById(phoneNumber)
             .orElseThrow { UserNotFoundException("Owner not found with phone: $phoneNumber") }

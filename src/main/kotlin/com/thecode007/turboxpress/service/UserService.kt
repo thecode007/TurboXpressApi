@@ -24,6 +24,7 @@ class UserService(
     private val impersonationExpiration: Long
 ) {
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getAllUsers(pageable: Pageable): PageResponse<UserResponse> {
         val usersPage = userRepository.findAll(pageable)
         val userResponses = usersPage.content.map { it.toUserResponse() }
@@ -38,12 +39,14 @@ class UserService(
         )
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getUserById(userId: UUID): UserResponse {
         val user = userRepository.findById(userId)
             .orElseThrow { UserNotFoundException("User not found with id: $userId") }
         return user.toUserResponse()
     }
     
+    @org.springframework.transaction.annotation.Transactional
     fun createUser(request: CreateUserRequest): UserResponse {
         // Get roles
         val roles = roleRepository.findAllById(request.roleIds).toMutableSet()
@@ -62,6 +65,7 @@ class UserService(
         return savedUser.toUserResponse()
     }
     
+    @org.springframework.transaction.annotation.Transactional
     fun updateUser(userId: UUID, request: UpdateUserRequest): UserResponse {
         val user = userRepository.findById(userId)
             .orElseThrow { UserNotFoundException("User not found with id: $userId") }
@@ -79,6 +83,7 @@ class UserService(
         return updatedUser.toUserResponse()
     }
     
+    @org.springframework.transaction.annotation.Transactional
     fun deleteUser(userId: UUID) {
         if (!userRepository.existsById(userId)) {
             throw UserNotFoundException("User not found with id: $userId")
@@ -86,6 +91,7 @@ class UserService(
         userRepository.deleteById(userId)
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun impersonateUser(targetUserId: UUID, adminId: String): ImpersonateResponse {
         val targetUser = userRepository.findById(targetUserId)
             .orElseThrow { UserNotFoundException("User not found with id: $targetUserId") }

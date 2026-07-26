@@ -30,7 +30,7 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     fun findAllByVerificationStatusWithUser(status: VerificationStatus): List<DriverProfile>
 
     /** All APPROVED+ONLINE+IDLE drivers with their user eagerly loaded (for broadcast). */
-    @Query("SELECT p FROM DriverProfile p JOIN FETCH p.user WHERE p.verificationStatus = 'APPROVED' AND p.onlineStatus = 'ONLINE' AND p.status = 'IDLE'")
+    @Query("SELECT p FROM DriverProfile p JOIN FETCH p.user WHERE p.verificationStatus = com.thecode007.turboxpress.entity.VerificationStatus.APPROVED AND p.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.ONLINE AND p.status = com.thecode007.turboxpress.entity.DriverStatus.IDLE")
     fun findAllApprovedOnlineIdleDriversWithUser(): List<DriverProfile>
 
     /** Finds the nearest idle driver using PostGIS <-> nearest-neighbor operator. */
@@ -47,6 +47,6 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     fun findNearestIdleDriver(@org.springframework.data.repository.query.Param("restaurantLocation") restaurantLocation: org.locationtech.jts.geom.Point): DriverProfile?
 
     @Modifying
-    @Query("UPDATE DriverProfile p SET p.adminDebtBalance = p.adminDebtBalance - p.dailyRate WHERE p.dailyRate > 0 AND p.verificationStatus = 'APPROVED'")
+    @Query("UPDATE DriverProfile p SET p.adminDebtBalance = p.adminDebtBalance - p.dailyRate WHERE p.dailyRate > 0 AND p.verificationStatus = com.thecode007.turboxpress.entity.VerificationStatus.APPROVED")
     fun accrueDailySalaries(): Int
 }

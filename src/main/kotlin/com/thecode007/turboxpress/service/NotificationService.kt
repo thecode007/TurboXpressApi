@@ -39,6 +39,35 @@ class NotificationService {
         }
     }
 
+    fun notifyOwnerDriverRejected(orderId: Long?, ownerPhoneNumber: String?, driverName: String?) {
+        if (orderId == null || ownerPhoneNumber == null) return
+        try {
+            val sanitizedPhone = ownerPhoneNumber.replace(Regex("[^a-zA-Z0-9-_.~%]"), "")
+            val topic = "owner_$sanitizedPhone"
+            val androidConfig = AndroidConfig.builder()
+                .setPriority(AndroidConfig.Priority.HIGH)
+                .setNotification(AndroidNotification.builder().setChannelId("turboxpress_high_priority").build())
+                .build()
+
+            val message = Message.builder()
+                .setTopic(topic)
+                .setAndroidConfig(androidConfig)
+                .setNotification(
+                    Notification.builder()
+                        .setTitle("Order Rejected")
+                        .setBody("Driver ${driverName ?: "Unknown"} has rejected order #$orderId.")
+                        .build()
+                )
+                .putData("orderId", orderId.toString())
+                .putData("type", "DRIVER_REJECTED")
+                .build()
+
+            FirebaseMessaging.getInstance().send(message)
+        } catch (e: Exception) {
+            println("Failed to send driver rejection notification for order $orderId: ${e.message}")
+        }
+    }
+
     fun notifyDriver(orderId: Long?, driverPhoneNumber: String?) {
         if (orderId == null || driverPhoneNumber == null) return
         try {

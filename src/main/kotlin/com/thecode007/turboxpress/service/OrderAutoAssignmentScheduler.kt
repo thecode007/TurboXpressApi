@@ -38,7 +38,7 @@ class OrderAutoAssignmentScheduler(
             
             if (nearestProfile != null) {
                 // Assign driver (this now also handles notifications internally)
-                orderService.assignDriverFromScheduler(order.id, nearestProfile.userId)
+                orderService.autoAssignDriver(order.id)
             }
         }
     }

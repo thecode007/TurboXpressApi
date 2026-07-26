@@ -21,7 +21,7 @@ data class RestaurantItemResponse(
                 price = item.price,
                 category = item.category?.name,
                 isAvailable = item.isAvailable,
-                photoUrls = item.photoUrls
+                photoUrls = item.photoUrls.toList()
             )
         }
     }

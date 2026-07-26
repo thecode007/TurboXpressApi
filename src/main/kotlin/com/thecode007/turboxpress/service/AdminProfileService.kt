@@ -92,6 +92,7 @@ class AdminProfileService(
     /**
      * Returns all profiles for a given role that are currently PENDING review.
      */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getPendingProfiles(role: String): List<PendingProfileDto> {
         return when (role.uppercase()) {
             "COURIER" -> driverProfileRepository

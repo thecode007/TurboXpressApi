@@ -18,6 +18,7 @@ class ProfileService(
 ) {
     private val logger = LoggerFactory.getLogger(ProfileService::class.java)
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getStatus(userId: UUID, role: String): String {
         return when (role.uppercase()) {
             "CUSTOMER" -> customerProfileRepository.findById(userId).map { it.verificationStatus.name }.orElse("PENDING")
@@ -27,6 +28,7 @@ class ProfileService(
         }
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getMyProfile(userId: UUID, role: String): com.thecode007.turboxpress.dto.ProfileResponseDto {
         return when (role.uppercase()) {
             "CUSTOMER" -> {
@@ -163,6 +165,7 @@ class ProfileService(
         }
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getOnlineStatus(userId: UUID): String {
         return driverProfileRepository.findById(userId)
             .map { it.onlineStatus.name }

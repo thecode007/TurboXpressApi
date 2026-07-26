@@ -37,8 +37,8 @@ class OrderService(
 
         val customer = if (existing.isPresent) {
             val c = existing.get()
-            // Update name if it changed
-            if (request.customerName.isNotBlank() && c.fullName != request.customerName) {
+            // Update name if it changed and is not null/blank
+            if (!request.customerName.isNullOrBlank() && c.fullName != request.customerName) {
                 c.fullName = request.customerName
             }
             c
@@ -47,10 +47,11 @@ class OrderService(
             val userOpt = userRepository.findByPhoneNumber(request.customerPhone)
             val userId = if (userOpt.isEmpty) {
                 val role = roleRepository.findByRoleName("CUSTOMER").orElse(null)
+                val finalName = if (!request.customerName.isNullOrBlank()) request.customerName else "Unknown"
                 val newUser = User(
                     username = request.customerPhone,
                     phoneNumber = request.customerPhone,
-                    fullName = request.customerName,
+                    fullName = finalName,
                     roles = role?.let { mutableSetOf(it) } ?: mutableSetOf()
                 )
                 val savedUser = userRepository.save(newUser)
@@ -58,7 +59,7 @@ class OrderService(
                 val profile = CustomerProfile(
                     userId = savedUser.id!!,
                     user = savedUser,
-                    displayName = request.customerName
+                    displayName = finalName
                 )
                 customerProfileRepository.save(profile)
                 savedUser.id
@@ -108,11 +109,13 @@ class OrderService(
             customer = customer,
             totalAmount = 0.0,
             routeDistanceKm = request.routeDistanceKm,
-            deliveryFee = request.deliveryFee
+            deliveryFee = request.deliveryFee,
+            customDescription = request.customDescription,
+            customItemsCost = request.customItemsCost
         )
 
         val savedOrder = orderRepository.save(order)
-        var totalAmount = 0.0
+        var totalAmount = request.customItemsCost ?: 0.0
 
         val orderItems = request.items.map { itemRequest ->
             val menuItem = restaurantItemRepository.findById(itemRequest.menuItemId)
@@ -140,8 +143,8 @@ class OrderService(
         val finalOrder = orderRepository.save(savedOrder)
 
         // Trigger broadcast if manual assignment is enabled
-        val setting = appSettingRepository.findById(1L).orElse(null)
-        if (setting != null && !setting.isAutoAssignEnabled) {
+        val isAuto = appSettingRepository.findById(1L).map { it.isAutoAssignEnabled }.orElse(true)
+        if (!isAuto) {
             broadcastNextPendingOrder()
         }
 
@@ -170,12 +173,14 @@ class OrderService(
         order.customer = customer
         order.routeDistanceKm = request.routeDistanceKm
         order.deliveryFee = request.deliveryFee
+        order.customDescription = request.customDescription
+        order.customItemsCost = request.customItemsCost
 
         // Remove old items
         orderItemRepository.deleteAll(order.items)
         order.items.clear()
 
-        var totalAmount = 0.0
+        var totalAmount = request.customItemsCost ?: 0.0
 
         val newItems = request.items.map { itemRequest ->
             val menuItem = restaurantItemRepository.findById(itemRequest.menuItemId)
@@ -217,17 +222,20 @@ class OrderService(
     // Reads
     // ─────────────────────────────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     fun getOrderById(id: Long): OrderResponse {
         val order = orderRepository.findById(id)
             .orElseThrow { ResourceNotFoundException("Order not found: $id") }
         return mapToResponse(order)
     }
 
+    @Transactional(readOnly = true)
     fun getAllOrders(): List<OrderResponse> {
         val thirtyDaysAgo = java.time.Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS)
         return orderRepository.findByCreatedAtAfterOrderByCreatedAtDesc(thirtyDaysAgo).map { mapToResponse(it) }
     }
 
+    @Transactional(readOnly = true)
     fun getDriverOrderHistory(driverId: java.util.UUID): List<OrderResponse> {
         return orderRepository.findByDriverIdOrderByCreatedAtDesc(driverId).map { mapToResponse(it) }
     }
@@ -326,10 +334,25 @@ class OrderService(
         val savedOrder = orderRepository.save(order)
 
         // The order was rejected and goes back to the pool, trigger broadcast for others.
-        val setting = appSettingRepository.findById(1L).orElse(null)
-        if (setting != null && !setting.isAutoAssignEnabled) {
+        val isAuto = appSettingRepository.findById(1L).map { it.isAutoAssignEnabled }.orElse(true)
+        if (!isAuto) {
             broadcastNextPendingOrder()
         }
+
+        // Notify the owner (admin) about the rejection
+        notificationService.notifyOwnerDriverRejected(
+            orderId = savedOrder.id,
+            ownerPhoneNumber = savedOrder.restaurant.owner.phoneNumber,
+            driverName = driverProfile.user.fullName
+        )
+
+        // Broadcast to desktop app for immediate Kanban update
+        orderEventBroadcaster.broadcast(
+            type = "DRIVER_REJECTED",
+            orderId = savedOrder.id!!,
+            status = savedOrder.status.name,
+            driverName = driverProfile.user.fullName
+        )
 
         return mapToResponse(savedOrder)
     }
@@ -553,6 +576,7 @@ class OrderService(
     // Active delivery query
     // ─────────────────────────────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     fun getActiveDeliveryForDriver(driverId: java.util.UUID): OrderResponse? {
         val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.ON_THE_WAY)
         val orders = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtDesc(driverId, targetStatuses)
@@ -634,6 +658,8 @@ class OrderService(
                     priceAtOrder = it.priceAtOrder
                 )
             },
+            customDescription = order.customDescription,
+            customItemsCost = order.customItemsCost,
             customerId = customer.id,
             customerName = customer.fullName,
             customerPhone = customer.phoneNumber,
