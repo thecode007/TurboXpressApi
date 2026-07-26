@@ -256,7 +256,9 @@ class OrderService(
         }
 
         order.driver = newDriverProfile
-        order.deliveryStatus = DeliveryStatus.ASSIGNED
+        if (order.deliveryStatus == DeliveryStatus.PENDING || order.deliveryStatus == DeliveryStatus.AT_RESTAURANT) {
+            order.deliveryStatus = DeliveryStatus.ASSIGNED
+        }
 
         newDriverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(newDriverProfile)
