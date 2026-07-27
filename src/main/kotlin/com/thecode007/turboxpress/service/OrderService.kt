@@ -4,6 +4,8 @@ import com.thecode007.turboxpress.dto.*
 import com.thecode007.turboxpress.entity.*
 import com.thecode007.turboxpress.exception.ResourceNotFoundException
 import com.thecode007.turboxpress.repository.*
+import jakarta.persistence.EntityManager
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,8 +23,13 @@ class OrderService(
     private val customerProfileRepository: CustomerProfileRepository,
     private val roleRepository: RoleRepository,
     private val appSettingRepository: com.thecode007.turboxpress.repository.AppSettingRepository,
-    private val orderEventBroadcaster: OrderEventBroadcaster
+    private val orderEventBroadcaster: OrderEventBroadcaster,
+    private val entityManager: EntityManager
 ) {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(OrderService::class.java)
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
@@ -142,10 +149,19 @@ class OrderService(
         savedOrder.items.addAll(orderItems)
         val finalOrder = orderRepository.save(savedOrder)
 
-        // Trigger broadcast if manual assignment is enabled
+        // Trigger broadcast if manual assignment is enabled.
+        // Flush first so the newly saved order is visible to the query inside broadcastNextPendingOrder.
         val isAuto = appSettingRepository.findById(1L).map { it.isAutoAssignEnabled }.orElse(true)
+        log.info("[createOrder] Order #${finalOrder.id} created. isAutoAssign=$isAuto")
+        println(">>> [createOrder] Order #${finalOrder.id} created. isAutoAssign=$isAuto")
         if (!isAuto) {
+            log.info("[createOrder] Manual mode active — flushing and triggering broadcastNextPendingOrder for order #${finalOrder.id}")
+            println(">>> [createOrder] Manual mode — calling broadcastNextPendingOrder for order #${finalOrder.id}")
+            entityManager.flush()
             broadcastNextPendingOrder()
+        } else {
+            log.info("[createOrder] Auto-assign mode active — skipping manual broadcast for order #${finalOrder.id}")
+            println(">>> [createOrder] Auto-assign mode — skipping broadcast for order #${finalOrder.id}")
         }
 
         val response = mapToResponse(finalOrder)
@@ -359,19 +375,33 @@ class OrderService(
 
     @Transactional
     fun broadcastNextPendingOrder() {
+        log.info("[broadcastNextPendingOrder] Called — querying unassigned orders...")
+        println(">>> [broadcastNextPendingOrder] Called — querying unassigned orders...")
         val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
         val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(targetStatuses)
-        val nextOrder = pendingOrders.firstOrNull() ?: return
+        log.info("[broadcastNextPendingOrder] Found ${pendingOrders.size} unassigned order(s): ${pendingOrders.map { it.id }}")
+        println(">>> [broadcastNextPendingOrder] Found ${pendingOrders.size} unassigned order(s): ${pendingOrders.map { it.id }}")
 
-        // Use JOIN FETCH query to eagerly load user phone numbers.
-        // Only APPROVED+ONLINE+IDLE drivers receive the broadcast.
+        val nextOrder = pendingOrders.firstOrNull()
+        if (nextOrder == null) {
+            log.info("[broadcastNextPendingOrder] No eligible unassigned orders — broadcast skipped.")
+            println(">>> [broadcastNextPendingOrder] No eligible unassigned orders — broadcast skipped.")
+            return
+        }
+        log.info("[broadcastNextPendingOrder] Next order to broadcast: #${nextOrder.id} (status=${nextOrder.status})")
+        println(">>> [broadcastNextPendingOrder] Next order: #${nextOrder.id} (status=${nextOrder.status})")
+
         val idleDrivers = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser()
         val phones = idleDrivers.mapNotNull { it.user.phoneNumber }
-        println("Broadcasting order #${nextOrder.id} to ${phones.size} drivers: $phones")
+        log.info("[broadcastNextPendingOrder] Found ${phones.size} ONLINE+IDLE driver(s): $phones")
+        println(">>> [broadcastNextPendingOrder] Found ${phones.size} ONLINE+IDLE driver(s): $phones")
         if (phones.isNotEmpty()) {
             notificationService.broadcastOrderToDrivers(nextOrder.id, phones)
+            log.info("[broadcastNextPendingOrder] Notification sent for order #${nextOrder.id} to ${phones.size} driver(s).")
+            println(">>> [broadcastNextPendingOrder] FCM sent for order #${nextOrder.id} to ${phones.size} driver(s).")
         } else {
-            println("No ONLINE+IDLE drivers found. Broadcast skipped for order #${nextOrder.id}")
+            log.warn("[broadcastNextPendingOrder] No ONLINE+IDLE drivers found — broadcast skipped for order #${nextOrder.id}.")
+            println(">>> [broadcastNextPendingOrder] No ONLINE+IDLE drivers — broadcast skipped for order #${nextOrder.id}.")
         }
     }
 

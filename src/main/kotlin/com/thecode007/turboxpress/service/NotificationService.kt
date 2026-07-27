@@ -75,18 +75,11 @@ class NotificationService {
             val topic = "driver_$sanitizedPhone"
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
-                .setNotification(AndroidNotification.builder().setChannelId("turboxpress_high_priority").build())
                 .build()
 
             val message = Message.builder()
                 .setTopic(topic)
                 .setAndroidConfig(androidConfig)
-                .setNotification(
-                    Notification.builder()
-                        .setTitle("New Delivery Request")
-                        .setBody("You have a new delivery request for order #$orderId.")
-                        .build()
-                )
                 .putData("orderId", orderId.toString())
                 .putData("type", "NEW_DELIVERY_REQUEST")
                 .build()
@@ -170,18 +163,22 @@ class NotificationService {
                     .setAndroidConfig(androidConfig)
                     .setNotification(
                         Notification.builder()
-                            .setTitle("New Order Available!")
-                            .setBody("Order #$orderId is available. Tap to accept.")
+                            .setTitle("New Order Available")
+                            .setBody("Order #$orderId is waiting for pickup. Tap to accept.")
                             .build()
                     )
                     .putData("orderId", orderId.toString())
                     .putData("type", "BROADCAST_ORDER")
                     .build()
             }
-            // Send individually. FCM also supports sendAll for batch sending.
-            // Using sendAll for efficiency if there are many drivers.
-            FirebaseMessaging.getInstance().sendAll(messages)
-            println("Broadcasted order #$orderId to ${messages.size} drivers")
+            val batchResponse = FirebaseMessaging.getInstance().sendEach(messages)
+            val failed = batchResponse.responses.filter { !it.isSuccessful }
+            if (failed.isEmpty()) {
+                println("Broadcasted order #$orderId to ${messages.size} driver(s) successfully.")
+            } else {
+                println("Broadcasted order #$orderId: ${batchResponse.successCount} succeeded, ${failed.size} failed.")
+                failed.forEach { println("  FCM send failure: ${it.exception?.message}") }
+            }
         } catch (e: Exception) {
             println("Failed to broadcast order $orderId: ${e.message}")
         }
@@ -207,8 +204,14 @@ class NotificationService {
                     .putData("type", "BROADCAST_ORDER_TAKEN")
                     .build()
             }
-            FirebaseMessaging.getInstance().sendAll(messages)
-            println("Notified ${messages.size} drivers that order #$orderId was taken")
+            val batchResponse = FirebaseMessaging.getInstance().sendEach(messages)
+            val failed = batchResponse.responses.filter { !it.isSuccessful }
+            if (failed.isEmpty()) {
+                println("Notified ${messages.size} driver(s) that order #$orderId was taken.")
+            } else {
+                println("Order taken notify: ${batchResponse.successCount} succeeded, ${failed.size} failed.")
+                failed.forEach { println("  FCM send failure: ${it.exception?.message}") }
+            }
         } catch (e: Exception) {
             println("Failed to notify drivers of taken order $orderId: ${e.message}")
         }

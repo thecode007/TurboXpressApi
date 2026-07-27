@@ -151,6 +151,14 @@ class AdminDriverService(
         userRepository.delete(user)
     }
 
+    @Transactional
+    fun changeDriverPassword(phoneNumber: String, request: com.thecode007.turboxpress.dto.ChangeDriverPasswordRequest) {
+        val user = userRepository.findByPhoneNumber(phoneNumber)
+            .orElseThrow { ResourceNotFoundException("Driver not found") }
+        user.passwordHash = passwordEncoder.encode(request.newPassword) ?: ""
+        userRepository.save(user)
+    }
+
     private fun DriverProfile.toDriverResponse(): DriverResponse {
         return DriverResponse(
             phoneNumber = this.user.phoneNumber,

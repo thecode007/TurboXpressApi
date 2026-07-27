@@ -57,4 +57,13 @@ class AdminDriverController(
         adminDriverService.deleteDriver(phoneNumber)
         return ResponseEntity.ok(BaseResponse.success("Driver deleted successfully"))
     }
+
+    @PutMapping("/{phoneNumber}/password")
+    fun changeDriverPassword(
+        @PathVariable phoneNumber: String,
+        @RequestBody request: ChangeDriverPasswordRequest
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        adminDriverService.changeDriverPassword(phoneNumber, request)
+        return ResponseEntity.ok(BaseResponse.success("Driver password updated successfully"))
+    }
 }

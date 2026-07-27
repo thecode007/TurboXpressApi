@@ -36,3 +36,7 @@ data class UpdateDriverRequest(
     val isActive: Boolean,
     val dailyRate: Double = 0.0
 )
+
+data class ChangeDriverPasswordRequest(
+    val newPassword: String
+)
