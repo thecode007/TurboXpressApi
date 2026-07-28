@@ -23,6 +23,7 @@ class FirebaseConfig {
 
             val options = FirebaseOptions.builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount.inputStream))
+                .setProjectId("turboxpress-b159c")
                 .build()
 
             if (FirebaseApp.getApps().isEmpty()) {

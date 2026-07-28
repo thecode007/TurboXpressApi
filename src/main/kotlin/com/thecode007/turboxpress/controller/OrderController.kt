@@ -10,15 +10,12 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import com.thecode007.turboxpress.security.decorator.PermissionDecorator
 import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-import com.thecode007.turboxpress.service.OrderEventBroadcaster
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/orders")
 class OrderController(
-    private val orderService: OrderService,
-    private val orderEventBroadcaster: OrderEventBroadcaster
+    private val orderService: OrderService
 ) {
 
     @GetMapping("/active-delivery")
@@ -34,11 +31,6 @@ class OrderController(
         }
     }
 
-    @GetMapping("/events", produces = ["text/event-stream"])
-    fun streamOrderEvents(): SseEmitter {
-        val activeOrders = orderService.getAllOrders()
-        return orderEventBroadcaster.register(activeOrders)
-    }
 
     @GetMapping("/driver/history")
     fun getDriverHistory(
