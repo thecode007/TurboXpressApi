@@ -17,18 +17,11 @@ class NotificationService {
             val topic = "owner_$sanitizedPhone"
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
-                .setNotification(AndroidNotification.builder().setChannelId("turboxpress_high_priority").build())
                 .build()
 
             val message = Message.builder()
                 .setTopic(topic)
                 .setAndroidConfig(androidConfig)
-                .setNotification(
-                    Notification.builder()
-                        .setTitle("Driver Assigned")
-                        .setBody("A driver has been successfully assigned to order #$orderId.")
-                        .build()
-                )
                 .putData("orderId", orderId.toString())
                 .putData("type", "DRIVER_ASSIGNED")
                 .build()
@@ -46,20 +39,14 @@ class NotificationService {
             val topic = "owner_$sanitizedPhone"
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
-                .setNotification(AndroidNotification.builder().setChannelId("turboxpress_high_priority").build())
                 .build()
 
             val message = Message.builder()
                 .setTopic(topic)
                 .setAndroidConfig(androidConfig)
-                .setNotification(
-                    Notification.builder()
-                        .setTitle("Order Rejected")
-                        .setBody("Driver ${driverName ?: "Unknown"} has rejected order #$orderId.")
-                        .build()
-                )
                 .putData("orderId", orderId.toString())
                 .putData("type", "DRIVER_REJECTED")
+                .putData("driverName", driverName ?: "Unknown")
                 .build()
 
             FirebaseMessaging.getInstance().send(message)
@@ -96,18 +83,11 @@ class NotificationService {
             val topic = "driver_$sanitizedPhone"
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
-                .setNotification(AndroidNotification.builder().setChannelId("turboxpress_high_priority").build())
                 .build()
 
             val message = Message.builder()
                 .setTopic(topic)
                 .setAndroidConfig(androidConfig)
-                .setNotification(
-                    Notification.builder()
-                        .setTitle("Order Ready for Pickup")
-                        .setBody("Order #$orderId is ready for pickup at the restaurant.")
-                        .build()
-                )
                 .putData("orderId", orderId.toString())
                 .putData("type", "ORDER_READY")
                 .build()
@@ -125,18 +105,11 @@ class NotificationService {
             val topic = "driver_$sanitizedPhone"
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
-                .setNotification(AndroidNotification.builder().setChannelId("turboxpress_high_priority").build())
                 .build()
 
             val message = Message.builder()
                 .setTopic(topic)
                 .setAndroidConfig(androidConfig)
-                .setNotification(
-                    Notification.builder()
-                        .setTitle("Order Unassigned")
-                        .setBody("You have been unassigned from order #$orderId.")
-                        .build()
-                )
                 .putData("orderId", orderId.toString())
                 .putData("type", "DRIVER_UNASSIGNED")
                 .build()
@@ -155,18 +128,11 @@ class NotificationService {
                 val topic = "driver_$sanitizedPhone"
                 val androidConfig = AndroidConfig.builder()
                     .setPriority(AndroidConfig.Priority.HIGH)
-                    .setNotification(AndroidNotification.builder().setChannelId("turboxpress_high_priority").build())
                     .build()
 
                 Message.builder()
                     .setTopic(topic)
                     .setAndroidConfig(androidConfig)
-                    .setNotification(
-                        Notification.builder()
-                            .setTitle("New Order Available")
-                            .setBody("Order #$orderId is waiting for pickup. Tap to accept.")
-                            .build()
-                    )
                     .putData("orderId", orderId.toString())
                     .putData("type", "BROADCAST_ORDER")
                     .build()
