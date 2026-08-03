@@ -35,10 +35,10 @@ class OrderController(
     @GetMapping("/driver/history")
     fun getDriverHistory(
         @AuthenticationPrincipal principal: PermissionDecorator
-    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+    ): ResponseEntity<BaseResponse<com.thecode007.turboxpress.dto.DriverWorkResponse>> {
         val userId = UUID.fromString(principal.getUserId())
         val orders = orderService.getDriverOrderHistory(userId)
-        return ResponseEntity.ok(BaseResponse.success("Driver history retrieved successfully", orders))
+        return ResponseEntity.ok(BaseResponse.success("Driver work retrieved successfully", orders))
     }
 
     @PostMapping

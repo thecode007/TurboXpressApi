@@ -252,8 +252,40 @@ class OrderService(
     }
 
     @Transactional(readOnly = true)
-    fun getDriverOrderHistory(driverId: java.util.UUID): List<OrderResponse> {
-        return orderRepository.findByDriverIdOrderByCreatedAtDesc(driverId).map { mapToResponse(it) }
+    fun getDriverOrderHistory(driverId: java.util.UUID): com.thecode007.turboxpress.dto.DriverWorkResponse {
+        val orders = orderRepository.findByDriverIdOrderByCreatedAtDesc(driverId).map { mapToResponse(it) }
+        
+        var totalOrders = 0
+        var totalDeliveryFees = 0.0
+        
+        // Group orders by day, with a -2 hours offset so the day ends at 2 AM
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(java.time.ZoneId.systemDefault())
+        val groupedMap = mutableMapOf<String, MutableList<com.thecode007.turboxpress.dto.OrderResponse>>()
+        
+        for (order in orders) {
+            totalOrders++
+            totalDeliveryFees += order.deliveryFee
+            
+            val adjustedInstant = order.createdAt.minus(2, java.time.temporal.ChronoUnit.HOURS)
+            val dateStr = formatter.format(adjustedInstant)
+            
+            groupedMap.computeIfAbsent(dateStr) { mutableListOf() }.add(order)
+        }
+        
+        val groupedByDay = groupedMap.map { (date, dailyOrders) ->
+            com.thecode007.turboxpress.dto.DailyWorkSummary(
+                date = date,
+                orderCount = dailyOrders.size,
+                dailyFees = dailyOrders.sumOf { it.deliveryFee },
+                orders = dailyOrders
+            )
+        }.sortedByDescending { it.date }
+        
+        return com.thecode007.turboxpress.dto.DriverWorkResponse(
+            totalOrders = totalOrders,
+            totalDeliveryFees = totalDeliveryFees,
+            groupedByDay = groupedByDay
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────────
