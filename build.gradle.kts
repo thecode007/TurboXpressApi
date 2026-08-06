@@ -12,7 +12,7 @@ description = "Project api for TurboXpress delivery"
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(24)
+		languageVersion = JavaLanguageVersion.of(21)
 	}
 }
 

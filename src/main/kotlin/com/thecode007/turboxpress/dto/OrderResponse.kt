@@ -5,7 +5,8 @@ import java.time.Instant
 
 data class OrderResponse(
     val id: Long,
-    val restaurantId: Long,
+    val orderType: String = "FOOD_DELIVERY",
+    val restaurantId: Long?,
     val restaurantName: String,
     val driverPhoneNumber: String?,
     val driverFullName: String?,
@@ -39,5 +40,8 @@ data class OrderResponse(
     val acceptedAt: Instant? = null,
     val readyAt: Instant? = null,
     val pickedUpAt: Instant? = null,
-    val deliveredAt: Instant? = null
+    val deliveredAt: Instant? = null,
+    // ROOM_SERVICE / TAXI
+    val sourceName: String? = null,
+    val destinationName: String? = null
 )

@@ -442,3 +442,19 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50) NOT NULL
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS driver_arrived_at_restaurant_at TIMESTAMP;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_description TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_items_cost DOUBLE PRECISION;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Room Service & Taxi order type support
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Discriminator for order type (FOOD_DELIVERY, ROOM_SERVICE, TAXI)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type VARCHAR(50) NOT NULL DEFAULT 'FOOD_DELIVERY';
+
+-- Free-text pickup location (used by ROOM_SERVICE and TAXI)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS source_name VARCHAR(500);
+
+-- Free-text drop-off location (used by ROOM_SERVICE and TAXI)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS destination_name VARCHAR(500);
+
+-- Make restaurant_id nullable so ROOM_SERVICE / TAXI orders work without a restaurant
+ALTER TABLE orders ALTER COLUMN restaurant_id DROP NOT NULL;

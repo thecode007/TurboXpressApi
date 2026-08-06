@@ -34,8 +34,8 @@ class OrderAutoAssignmentScheduler(
         }
 
         for (order in unassignedOrders) {
-            val nearestProfile = driverProfileRepository.findNearestIdleDriver(order.restaurant.location)
-            
+            val loc = order.restaurant?.location ?: continue
+            val nearestProfile = driverProfileRepository.findNearestIdleDriver(loc)
             if (nearestProfile != null) {
                 // Assign driver (this now also handles notifications internally)
                 orderService.autoAssignDriver(order.id)

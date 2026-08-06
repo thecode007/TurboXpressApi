@@ -106,73 +106,126 @@ class OrderService(
 
     @Transactional
     fun createOrder(request: OrderCreateRequest): OrderResponse {
-        val restaurant = restaurantRepository.findById(request.restaurantId)
-            .orElseThrow { ResourceNotFoundException("Restaurant not found: ${request.restaurantId}") }
+        val orderType = try {
+            com.thecode007.turboxpress.entity.OrderType.valueOf(request.orderType)
+        } catch (e: IllegalArgumentException) {
+            com.thecode007.turboxpress.entity.OrderType.FOOD_DELIVERY
+        }
 
         val customer = resolveCustomer(request)
 
-        val order = Order(
-            restaurant = restaurant,
-            customer = customer,
-            totalAmount = 0.0,
-            routeDistanceKm = request.routeDistanceKm,
-            deliveryFee = request.deliveryFee,
-            customDescription = request.customDescription,
-            customItemsCost = request.customItemsCost
-        )
+        when (orderType) {
+            // ── ROOM SERVICE / TAXI ──────────────────────────────────────────
+            com.thecode007.turboxpress.entity.OrderType.ROOM_SERVICE,
+            com.thecode007.turboxpress.entity.OrderType.TAXI -> {
+                val order = Order(
+                    orderType = orderType,
+                    restaurant = null,
+                    customer = customer,
+                    totalAmount = 0.0,
+                    deliveryFee = request.deliveryFee,
+                    sourceName = request.sourceName,
+                    destinationName = request.destinationName,
+                    customDescription = request.customDescription
+                )
+                val savedOrder = orderRepository.save(order)
 
-        val savedOrder = orderRepository.save(order)
-        var totalAmount = request.customItemsCost ?: 0.0
+                // Auto-assign driver if pre-selected (Room Service flow)
+                if (request.driverPhoneNumber != null) {
+                    try {
+                        val user = userRepository.findByPhoneNumber(request.driverPhoneNumber)
+                        if (user.isPresent) {
+                            val driverProfile = user.get().id?.let { driverProfileRepository.findById(it).orElse(null) }
+                            if (driverProfile != null) {
+                                savedOrder.driver = driverProfile
+                                savedOrder.deliveryStatus = com.thecode007.turboxpress.entity.DeliveryStatus.ASSIGNED
+                                driverProfile.status = com.thecode007.turboxpress.entity.DriverStatus.ON_DELIVERY
+                                driverProfileRepository.save(driverProfile)
+                                orderRepository.save(savedOrder)
+                                // Notify the driver
+                                notificationService.notifyDriver(savedOrder.id, request.driverPhoneNumber)
+                                log.info("[createOrder] Driver ${request.driverPhoneNumber} auto-assigned to ${orderType.name} order #${savedOrder.id}")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        log.warn("[createOrder] Auto-assign driver failed for order #${savedOrder.id}: ${e.message}")
+                    }
+                }
 
-        val orderItems = request.items.map { itemRequest ->
-            val menuItem = restaurantItemRepository.findById(itemRequest.menuItemId)
-                .orElseThrow { ResourceNotFoundException("Menu item not found: ${itemRequest.menuItemId}") }
-
-            if (menuItem.restaurant.id != restaurant.id) {
-                throw IllegalArgumentException("Menu item ${menuItem.id} does not belong to restaurant ${restaurant.id}")
+                val response = mapToResponse(savedOrder)
+                orderEventBroadcaster.broadcast(
+                    type = "ORDER_CREATED",
+                    orderId = savedOrder.id,
+                    status = savedOrder.status.name,
+                    customerName = savedOrder.customer.fullName,
+                    restaurantName = "${orderType.name.replace('_', ' ')}"
+                )
+                return response
             }
 
-            val priceAtOrder = menuItem.price
-            totalAmount += priceAtOrder * itemRequest.quantity
+            // ── FOOD DELIVERY (original logic) ───────────────────────────────
+            com.thecode007.turboxpress.entity.OrderType.FOOD_DELIVERY -> {
+                val restaurant = restaurantRepository.findById(request.restaurantId)
+                    .orElseThrow { ResourceNotFoundException("Restaurant not found: ${request.restaurantId}") }
 
-            OrderItem(
-                order = savedOrder,
-                menuItem = menuItem,
-                quantity = itemRequest.quantity,
-                priceAtOrder = priceAtOrder
-            )
+                val order = Order(
+                    orderType = orderType,
+                    restaurant = restaurant,
+                    customer = customer,
+                    totalAmount = 0.0,
+                    routeDistanceKm = request.routeDistanceKm,
+                    deliveryFee = request.deliveryFee,
+                    customDescription = request.customDescription,
+                    customItemsCost = request.customItemsCost
+                )
+
+                val savedOrder = orderRepository.save(order)
+                var totalAmount = request.customItemsCost ?: 0.0
+
+                val orderItems = request.items.map { itemRequest ->
+                    val menuItem = restaurantItemRepository.findById(itemRequest.menuItemId)
+                        .orElseThrow { ResourceNotFoundException("Menu item not found: ${itemRequest.menuItemId}") }
+
+                    if (menuItem.restaurant.id != restaurant.id) {
+                        throw IllegalArgumentException("Menu item ${menuItem.id} does not belong to restaurant ${restaurant.id}")
+                    }
+
+                    val priceAtOrder = menuItem.price
+                    totalAmount += priceAtOrder * itemRequest.quantity
+
+                    OrderItem(
+                        order = savedOrder,
+                        menuItem = menuItem,
+                        quantity = itemRequest.quantity,
+                        priceAtOrder = priceAtOrder
+                    )
+                }
+
+                orderItemRepository.saveAll(orderItems)
+                savedOrder.totalAmount = totalAmount
+                savedOrder.platformCommissionAmount = totalAmount * restaurant.commissionRate
+                savedOrder.items.addAll(orderItems)
+                val finalOrder = orderRepository.save(savedOrder)
+
+                // Trigger broadcast if manual assignment is enabled.
+                val isAuto = appSettingRepository.findById(1L).map { it.isAutoAssignEnabled }.orElse(true)
+                log.info("[createOrder] Food Delivery order #${finalOrder.id} created. isAutoAssign=$isAuto")
+                if (!isAuto) {
+                    entityManager.flush()
+                    broadcastNextPendingOrder()
+                }
+
+                val response = mapToResponse(finalOrder)
+                orderEventBroadcaster.broadcast(
+                    type = "ORDER_CREATED",
+                    orderId = finalOrder.id,
+                    status = finalOrder.status.name,
+                    customerName = finalOrder.customer.fullName,
+                    restaurantName = finalOrder.restaurant?.name ?: ""
+                )
+                return response
+            }
         }
-
-        orderItemRepository.saveAll(orderItems)
-        savedOrder.totalAmount = totalAmount
-        savedOrder.platformCommissionAmount = totalAmount * restaurant.commissionRate
-        savedOrder.items.addAll(orderItems)
-        val finalOrder = orderRepository.save(savedOrder)
-
-        // Trigger broadcast if manual assignment is enabled.
-        // Flush first so the newly saved order is visible to the query inside broadcastNextPendingOrder.
-        val isAuto = appSettingRepository.findById(1L).map { it.isAutoAssignEnabled }.orElse(true)
-        log.info("[createOrder] Order #${finalOrder.id} created. isAutoAssign=$isAuto")
-        println(">>> [createOrder] Order #${finalOrder.id} created. isAutoAssign=$isAuto")
-        if (!isAuto) {
-            log.info("[createOrder] Manual mode active — flushing and triggering broadcastNextPendingOrder for order #${finalOrder.id}")
-            println(">>> [createOrder] Manual mode — calling broadcastNextPendingOrder for order #${finalOrder.id}")
-            entityManager.flush()
-            broadcastNextPendingOrder()
-        } else {
-            log.info("[createOrder] Auto-assign mode active — skipping manual broadcast for order #${finalOrder.id}")
-            println(">>> [createOrder] Auto-assign mode — skipping broadcast for order #${finalOrder.id}")
-        }
-
-        val response = mapToResponse(finalOrder)
-        orderEventBroadcaster.broadcast(
-            type = "ORDER_CREATED",
-            orderId = finalOrder.id!!,
-            status = finalOrder.status.name,
-            customerName = finalOrder.customer.fullName,
-            restaurantName = finalOrder.restaurant.name
-        )
-        return response
     }
 
     @Transactional
@@ -180,56 +233,66 @@ class OrderService(
         val order = orderRepository.findById(id)
             .orElseThrow { ResourceNotFoundException("Order not found: $id") }
 
-        val restaurant = restaurantRepository.findById(request.restaurantId)
-            .orElseThrow { ResourceNotFoundException("Restaurant not found: ${request.restaurantId}") }
+        val orderType = try {
+            com.thecode007.turboxpress.entity.OrderType.valueOf(request.orderType)
+        } catch (e: IllegalArgumentException) {
+            order.orderType // keep existing type if not specified
+        }
 
         val customer = resolveCustomer(request)
-
-        order.restaurant = restaurant
         order.customer = customer
+        order.orderType = orderType
+        order.sourceName = request.sourceName
+        order.destinationName = request.destinationName
         order.routeDistanceKm = request.routeDistanceKm
         order.deliveryFee = request.deliveryFee
         order.customDescription = request.customDescription
         order.customItemsCost = request.customItemsCost
 
-        // Remove old items
-        orderItemRepository.deleteAll(order.items)
-        order.items.clear()
+        if (orderType == com.thecode007.turboxpress.entity.OrderType.FOOD_DELIVERY && request.restaurantId != 0L) {
+            val restaurant = restaurantRepository.findById(request.restaurantId)
+                .orElseThrow { ResourceNotFoundException("Restaurant not found: ${request.restaurantId}") }
+            order.restaurant = restaurant
 
-        var totalAmount = request.customItemsCost ?: 0.0
+            // Remove old items
+            orderItemRepository.deleteAll(order.items)
+            order.items.clear()
 
-        val newItems = request.items.map { itemRequest ->
-            val menuItem = restaurantItemRepository.findById(itemRequest.menuItemId)
-                .orElseThrow { ResourceNotFoundException("Menu item not found: ${itemRequest.menuItemId}") }
+            var totalAmount = request.customItemsCost ?: 0.0
 
-            if (menuItem.restaurant.id != restaurant.id) {
-                throw IllegalArgumentException("Menu item ${menuItem.id} does not belong to restaurant ${restaurant.id}")
+            val newItems = request.items.map { itemRequest ->
+                val menuItem = restaurantItemRepository.findById(itemRequest.menuItemId)
+                    .orElseThrow { ResourceNotFoundException("Menu item not found: ${itemRequest.menuItemId}") }
+
+                if (menuItem.restaurant.id != restaurant.id) {
+                    throw IllegalArgumentException("Menu item ${menuItem.id} does not belong to restaurant ${restaurant.id}")
+                }
+
+                val priceAtOrder = menuItem.price
+                totalAmount += priceAtOrder * itemRequest.quantity
+
+                OrderItem(
+                    order = order,
+                    menuItem = menuItem,
+                    quantity = itemRequest.quantity,
+                    priceAtOrder = priceAtOrder
+                )
             }
 
-            val priceAtOrder = menuItem.price
-            totalAmount += priceAtOrder * itemRequest.quantity
-
-            OrderItem(
-                order = order,
-                menuItem = menuItem,
-                quantity = itemRequest.quantity,
-                priceAtOrder = priceAtOrder
-            )
+            orderItemRepository.saveAll(newItems)
+            order.items.addAll(newItems)
+            order.totalAmount = totalAmount
+            order.platformCommissionAmount = totalAmount * restaurant.commissionRate
         }
-
-        orderItemRepository.saveAll(newItems)
-        order.items.addAll(newItems)
-        order.totalAmount = totalAmount
-        order.platformCommissionAmount = totalAmount * restaurant.commissionRate
 
         val finalOrder = orderRepository.save(order)
         val response = mapToResponse(finalOrder)
         orderEventBroadcaster.broadcast(
             type = "ORDER_UPDATED",
-            orderId = finalOrder.id!!,
+            orderId = finalOrder.id,
             status = finalOrder.status.name,
             customerName = finalOrder.customer.fullName,
-            restaurantName = finalOrder.restaurant.name
+            restaurantName = finalOrder.restaurant?.name ?: orderType.name.replace('_', ' ')
         )
         return response
     }
@@ -321,7 +384,7 @@ class OrderService(
 
         val savedOrder = orderRepository.save(order)
 
-        notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
+        savedOrder.restaurant?.owner?.phoneNumber?.let { notificationService.notifyFrontend(savedOrder.id, it) }
         notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
 
         val response = mapToResponse(savedOrder)
@@ -339,7 +402,9 @@ class OrderService(
         val order = orderRepository.findById(orderId)
             .orElseThrow { ResourceNotFoundException("Order not found: $orderId") }
 
-        val nearestProfile = driverProfileRepository.findNearestIdleDriver(order.restaurant.location)
+        val restaurantLocation = order.restaurant?.location
+            ?: throw ResourceNotFoundException("Cannot auto-assign: order has no restaurant location")
+        val nearestProfile = driverProfileRepository.findNearestIdleDriver(restaurantLocation)
             ?: throw ResourceNotFoundException("No idle drivers available near the restaurant")
 
         order.driver = nearestProfile
@@ -349,7 +414,7 @@ class OrderService(
 
         val savedOrder = orderRepository.save(order)
 
-        notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
+        savedOrder.restaurant?.owner?.phoneNumber?.let { notificationService.notifyFrontend(savedOrder.id, it) }
         notificationService.notifyDriver(savedOrder.id, nearestProfile.user.phoneNumber)
 
         val response = mapToResponse(savedOrder)
@@ -390,7 +455,7 @@ class OrderService(
         // Notify the owner (admin) about the rejection
         notificationService.notifyOwnerDriverRejected(
             orderId = savedOrder.id,
-            ownerPhoneNumber = savedOrder.restaurant.owner.phoneNumber,
+            ownerPhoneNumber = savedOrder.restaurant?.owner?.phoneNumber ?: return mapToResponse(savedOrder),
             driverName = driverProfile.user.fullName
         )
 
@@ -463,7 +528,7 @@ class OrderService(
 
         val savedOrder = orderRepository.save(order)
 
-        notificationService.notifyFrontend(savedOrder.id, savedOrder.restaurant.owner.phoneNumber)
+        savedOrder.restaurant?.owner?.phoneNumber?.let { notificationService.notifyFrontend(savedOrder.id, it) }
         notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
 
         // Dismiss the order from all other drivers' screens
@@ -557,7 +622,7 @@ class OrderService(
             orderId = savedOrder.id!!,
             status = savedOrder.status.name,
             customerName = savedOrder.customer.fullName,
-            restaurantName = savedOrder.restaurant.name
+            restaurantName = savedOrder.restaurant?.name ?: savedOrder.orderType.name.replace('_', ' ')
         )
         return response
     }
@@ -629,7 +694,7 @@ class OrderService(
             orderId = savedOrder.id!!,
             status = savedOrder.deliveryStatus.name,
             customerName = savedOrder.customer.fullName,
-            restaurantName = savedOrder.restaurant.name
+            restaurantName = savedOrder.restaurant?.name ?: savedOrder.orderType.name.replace('_', ' ')
         )
         return response
     }
@@ -680,7 +745,7 @@ class OrderService(
         driverProfile.status = DriverStatus.ON_DELIVERY
         driverProfileRepository.save(driverProfile)
 
-        notificationService.notifyFrontend(order.id, order.restaurant.owner.phoneNumber)
+        order.restaurant?.owner?.phoneNumber?.let { notificationService.notifyFrontend(order.id, it) }
         notificationService.notifyDriver(order.id, driverProfile.user.phoneNumber)
 
         return true
@@ -696,14 +761,15 @@ class OrderService(
         val effectiveLat = customer.latitude ?: customer.deliveryZone?.polygon?.centroid?.y
         val effectiveLng = customer.longitude ?: customer.deliveryZone?.polygon?.centroid?.x
 
-        val zonePolygon = customer.deliveryZone?.polygon?.coordinates?.map { 
-            RoutePointDto(lat = it.y, lng = it.x) 
+        val zonePolygon = customer.deliveryZone?.polygon?.coordinates?.map {
+            RoutePointDto(lat = it.y, lng = it.x)
         }
 
         return OrderResponse(
             id = order.id,
-            restaurantId = order.restaurant.id,
-            restaurantName = order.restaurant.name,
+            orderType = order.orderType.name,
+            restaurantId = order.restaurant?.id,
+            restaurantName = order.restaurant?.name ?: order.orderType.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
             driverPhoneNumber = order.driver?.user?.phoneNumber,
             driverFullName = order.driver?.displayName ?: order.driver?.user?.fullName,
             driverId = order.driver?.userId?.toString(),
@@ -731,8 +797,8 @@ class OrderService(
             latitude = effectiveLat,
             longitude = effectiveLng,
             detailedAddress = customer.detailedAddress,
-            restaurantLat = order.restaurant.location.y,
-            restaurantLng = order.restaurant.location.x,
+            restaurantLat = order.restaurant?.location?.y,
+            restaurantLng = order.restaurant?.location?.x,
             driverLat = order.driver?.currentLocation?.y,
             driverLng = order.driver?.currentLocation?.x,
             routeDistanceKm = order.routeDistanceKm,
@@ -742,7 +808,9 @@ class OrderService(
             readyAt = order.readyAt,
             pickedUpAt = order.pickedUpAt,
             deliveredAt = order.deliveredAt,
-            locationMethod = if (customer.deliveryZone != null) "DELIVERY_ZONE" else "WHATSAPP_LINK"
+            locationMethod = if (customer.deliveryZone != null) "DELIVERY_ZONE" else "WHATSAPP_LINK",
+            sourceName = order.sourceName,
+            destinationName = order.destinationName
         )
     }
 }

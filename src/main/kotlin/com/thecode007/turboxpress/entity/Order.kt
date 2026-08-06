@@ -10,9 +10,31 @@ class Order(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
+    /**
+     * The type of this order.
+     * - FOOD_DELIVERY: standard restaurant order (restaurant required)
+     * - ROOM_SERVICE:  pick up from any source, deliver to customer (restaurant optional)
+     * - TAXI:          transport a passenger (restaurant optional)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false)
+    var orderType: OrderType = OrderType.FOOD_DELIVERY,
+
+    /** Free-text pickup location — used by ROOM_SERVICE and TAXI orders. */
+    @Column(name = "source_name")
+    var sourceName: String? = null,
+
+    /** Free-text drop-off location — used by ROOM_SERVICE and TAXI orders. */
+    @Column(name = "destination_name")
+    var destinationName: String? = null,
+
+    /**
+     * Restaurant — nullable so that ROOM_SERVICE / TAXI orders can be created
+     * without a restaurant record. FOOD_DELIVERY orders always have a restaurant.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "restaurant_id", nullable = false)
-    var restaurant: Restaurant,
+    @JoinColumn(name = "restaurant_id", nullable = true)
+    var restaurant: Restaurant? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id", referencedColumnName = "user_id")
