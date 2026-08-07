@@ -41,6 +41,25 @@ class OrderController(
         return ResponseEntity.ok(BaseResponse.success("Driver work retrieved successfully", orders))
     }
 
+    /**
+     * GET /api/orders/driver/work?date=2026-08-08
+     *
+     * Returns a single day of this driver's DELIVERED orders.
+     * Omit [date] to request today's page.
+     *
+     * Response is served from the server-side cache on repeated requests;
+     * cache is evicted automatically when any order transitions to DELIVERED.
+     */
+    @GetMapping("/driver/work")
+    fun getDriverWorkPage(
+        @AuthenticationPrincipal principal: PermissionDecorator,
+        @RequestParam(required = false) date: String?
+    ): ResponseEntity<BaseResponse<com.thecode007.turboxpress.dto.DailyWorkPage>> {
+        val userId = UUID.fromString(principal.getUserId())
+        val page = orderService.getDriverWorkPage(userId, date)
+        return ResponseEntity.ok(BaseResponse.success("Driver work page retrieved successfully", page))
+    }
+
     @PostMapping
     fun createOrder(@RequestBody request: OrderCreateRequest): ResponseEntity<BaseResponse<OrderResponse>> {
         val order = orderService.createOrder(request)

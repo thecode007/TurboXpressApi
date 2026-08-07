@@ -6,6 +6,8 @@ import com.thecode007.turboxpress.exception.ResourceNotFoundException
 import com.thecode007.turboxpress.repository.*
 import jakarta.persistence.EntityManager
 import org.slf4j.LoggerFactory
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -311,7 +313,9 @@ class OrderService(
     @Transactional(readOnly = true)
     fun getAllOrders(): List<OrderResponse> {
         val thirtyDaysAgo = java.time.Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS)
-        return orderRepository.findByCreatedAtAfterOrderByCreatedAtDesc(thirtyDaysAgo).map { mapToResponse(it) }
+        val twentyFourHoursAgo = java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS)
+        return orderRepository.findOrdersForDesktopScreen(thirtyDaysAgo, twentyFourHoursAgo)
+            .map { mapToResponse(it) }
     }
 
     @Transactional(readOnly = true)
@@ -322,7 +326,7 @@ class OrderService(
         var totalDeliveryFees = 0.0
         
         // Group orders by day, with a -2 hours offset so the day ends at 2 AM
-        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(java.time.ZoneId.systemDefault())
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(java.time.ZoneOffset.UTC)
         val groupedMap = mutableMapOf<String, MutableList<com.thecode007.turboxpress.dto.OrderResponse>>()
         
         for (order in orders) {
@@ -348,6 +352,72 @@ class OrderService(
             totalOrders = totalOrders,
             totalDeliveryFees = totalDeliveryFees,
             groupedByDay = groupedByDay
+        )
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Driver work page — iterator pattern with server-side cache
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns a single day of completed (DELIVERED) orders for the given driver.
+     *
+     * Results are cached in ["driver-work-pages"] keyed by [driverId + ":" + resolvedDate].
+     * The cache entry is evicted automatically whenever an order for this driver
+     * transitions to DELIVERED (via [updateOrderStatus] or [updateDeliveryStatus]).
+     *
+     * The business day boundary is shifted -2 h (matching [getDriverOrderHistory]),
+     * so a shift ending at 02:00 UTC still appears on the previous calendar date.
+     *
+     * @param driverId  the requesting driver's UUID
+     * @param dateStr   "YYYY-MM-DD" in UTC-adjusted time; null → today
+     */
+    @Cacheable(value = ["driver-work-pages"], key = "#driverId.toString() + ':' + (#dateStr ?: T(java.time.LocalDate).now(T(java.time.ZoneOffset).UTC).toString())")
+    @Transactional(readOnly = true)
+    fun getDriverWorkPage(driverId: java.util.UUID, dateStr: String?): DailyWorkPage {
+        // Resolve the target date — default to today in UTC
+        val targetDate: java.time.LocalDate = if (dateStr.isNullOrBlank()) {
+            java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+        } else {
+            java.time.LocalDate.parse(dateStr, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        }
+
+        // Shift the day window -2 h so a late shift ending at 02:00 UTC sits on the
+        // previous calendar day (matches the existing grouping logic in getDriverOrderHistory)
+        val windowStart: java.time.Instant = targetDate.atStartOfDay(java.time.ZoneOffset.UTC)
+            .plusHours(2).toInstant()
+        val windowEnd: java.time.Instant = targetDate.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC)
+            .plusHours(2).toInstant()
+
+        // Fetch only the requested day — O(orders_that_day), not O(entire history)
+        val orders = orderRepository
+            .findByDriverIdAndStatusAndDeliveredAtBetweenOrderByDeliveredAtDesc(
+                driverId = driverId,
+                status   = OrderStatus.DELIVERED,
+                start    = windowStart,
+                end      = windowEnd
+            )
+            .map { mapToResponse(it) }
+
+        // Two lightweight COUNT-only queries — no extra rows returned
+        val hasPrevious = orderRepository.existsByDriverIdAndStatusAndDeliveredAtBefore(
+            driverId = driverId,
+            status   = OrderStatus.DELIVERED,
+            before   = windowStart
+        )
+        val hasNext = orderRepository.existsByDriverIdAndStatusAndDeliveredAtGreaterThanEqual(
+            driverId = driverId,
+            status   = OrderStatus.DELIVERED,
+            from     = windowEnd
+        )
+
+        return DailyWorkPage(
+            date        = targetDate.toString(),
+            orderCount  = orders.size,
+            dailyFees   = orders.sumOf { it.deliveryFee },
+            orders      = orders,
+            hasPrevious = hasPrevious,
+            hasNext     = hasNext
         )
     }
 
@@ -553,6 +623,13 @@ class OrderService(
     // Status update
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Evict the driver's cached work page whenever an order is delivered,
+     * so the driver immediately sees the new entry on their next open.
+     * We evict ALL entries for this driver (allEntries = false is not enough
+     * because we don't know which date the order will appear on at call time).
+     */
+    @CacheEvict(value = ["driver-work-pages"], allEntries = true)
     @Transactional
     fun updateOrderStatus(orderId: Long, status: OrderStatus): OrderResponse {
         val order = orderRepository.findById(orderId)
@@ -627,6 +704,8 @@ class OrderService(
         return response
     }
 
+    /** Evict cached work pages when delivery status changes (e.g. DELIVERED). */
+    @CacheEvict(value = ["driver-work-pages"], allEntries = true)
     @Transactional
     fun updateDeliveryStatus(orderId: Long, status: DeliveryStatus): OrderResponse {
         val order = orderRepository.findById(orderId)
