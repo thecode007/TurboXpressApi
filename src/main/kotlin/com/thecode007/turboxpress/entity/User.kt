@@ -1,4 +1,4 @@
-﻿package com.thecode007.turboxpress.entity
+package com.thecode007.turboxpress.entity
 
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
@@ -40,6 +40,9 @@ data class User(
 
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
+
+    @Column(name = "preferred_language", length = 10, nullable = false)
+    var preferredLanguage: String = "en",
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -8,6 +8,8 @@ import com.thecode007.turboxpress.repository.OwnerRepository
 import com.thecode007.turboxpress.repository.RestaurantRepository
 import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -19,6 +21,7 @@ class RestaurantService(
     private val geometryFactory = GeometryFactory(org.locationtech.jts.geom.PrecisionModel(), 4326)
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Cacheable(value = ["restaurants"])
     fun getAllRestaurants(): List<RestaurantResponse> {
         return restaurantRepository.findAll().map { RestaurantResponse.from(it) }
     }
@@ -38,6 +41,7 @@ class RestaurantService(
     }
 
     @Transactional
+    @CacheEvict(value = ["restaurants"], allEntries = true)
     fun createRestaurant(request: CreateRestaurantRequest): RestaurantResponse {
         if (restaurantRepository.existsByName(request.name)) {
             throw IllegalArgumentException("A restaurant with name '${request.name}' already exists")
@@ -61,6 +65,7 @@ class RestaurantService(
     }
 
     @Transactional
+    @CacheEvict(value = ["restaurants"], allEntries = true)
     fun updateRestaurant(id: Long, request: UpdateRestaurantRequest): RestaurantResponse {
         val restaurant = restaurantRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Restaurant not found with id: $id") }
@@ -89,6 +94,7 @@ class RestaurantService(
     }
 
     @Transactional
+    @CacheEvict(value = ["restaurants"], allEntries = true)
     fun deleteRestaurant(id: Long) {
         if (!restaurantRepository.existsById(id)) {
             throw IllegalArgumentException("Restaurant not found with id: $id")

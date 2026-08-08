@@ -629,7 +629,7 @@ class OrderService(
      * We evict ALL entries for this driver (allEntries = false is not enough
      * because we don't know which date the order will appear on at call time).
      */
-    @CacheEvict(value = ["driver-work-pages"], allEntries = true)
+    @CacheEvict(value = ["driver-work-pages"], key = "#result.driverId + ':' + T(java.time.LocalDate).now(T(java.time.ZoneOffset).UTC).toString()", condition = "#result.driverId != null")
     @Transactional
     fun updateOrderStatus(orderId: Long, status: OrderStatus): OrderResponse {
         val order = orderRepository.findById(orderId)
@@ -705,7 +705,7 @@ class OrderService(
     }
 
     /** Evict cached work pages when delivery status changes (e.g. DELIVERED). */
-    @CacheEvict(value = ["driver-work-pages"], allEntries = true)
+    @CacheEvict(value = ["driver-work-pages"], key = "#result.driverId + ':' + T(java.time.LocalDate).now(T(java.time.ZoneOffset).UTC).toString()", condition = "#result.driverId != null")
     @Transactional
     fun updateDeliveryStatus(orderId: Long, status: DeliveryStatus): OrderResponse {
         val order = orderRepository.findById(orderId)

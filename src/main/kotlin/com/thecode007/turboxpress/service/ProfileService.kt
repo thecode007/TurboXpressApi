@@ -13,6 +13,7 @@ class ProfileService(
     private val customerProfileRepository: CustomerProfileRepository,
     private val driverProfileRepository: DriverProfileRepository,
     private val ownerProfileRepository: OwnerProfileRepository,
+    private val userRepository: UserRepository,
     private val mediaService: MediaService,
     @org.springframework.context.annotation.Lazy private val orderService: OrderService
 ) {
@@ -183,5 +184,14 @@ class ProfileService(
         if (status.uppercase() == "ONLINE") {
             orderService.broadcastNextPendingOrder()
         }
+    }
+
+    @Transactional
+    fun updateLanguage(userId: UUID, lang: String) {
+        val user = userRepository.findById(userId)
+            .orElseThrow { Exception("User not found") }
+        user.preferredLanguage = lang.lowercase()
+        userRepository.save(user)
+        logger.info("Updated language preference to $lang for user $userId")
     }
 }

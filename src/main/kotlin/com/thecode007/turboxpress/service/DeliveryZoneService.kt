@@ -8,6 +8,8 @@ import com.thecode007.turboxpress.repository.DeliveryZoneRepository
 import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
 import org.locationtech.jts.io.WKTReader
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 
 @Service
@@ -23,10 +25,12 @@ class DeliveryZoneService(
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Cacheable(value = ["zones"])
     fun getAllDeliveryZones(): List<DeliveryZoneResponse> {
         return deliveryZoneRepository.findAll().map { DeliveryZoneResponse.from(it) }
     }
 
+    @CacheEvict(value = ["zones"], allEntries = true)
     fun createDeliveryZone(request: CreateDeliveryZoneRequest): DeliveryZoneResponse {
         if (deliveryZoneRepository.existsByName(request.name)) {
             throw IllegalArgumentException("A delivery zone with name '${request.name}' already exists")
@@ -42,6 +46,7 @@ class DeliveryZoneService(
         return DeliveryZoneResponse.from(deliveryZoneRepository.save(zone))
     }
 
+    @CacheEvict(value = ["zones"], allEntries = true)
     fun updateDeliveryZone(id: Long, request: UpdateDeliveryZoneRequest): DeliveryZoneResponse {
         val zone = deliveryZoneRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Delivery zone not found with id: $id") }
@@ -57,6 +62,7 @@ class DeliveryZoneService(
         return DeliveryZoneResponse.from(deliveryZoneRepository.save(zone))
     }
 
+    @CacheEvict(value = ["zones"], allEntries = true)
     fun deleteDeliveryZone(id: Long) {
         if (!deliveryZoneRepository.existsById(id)) {
             throw IllegalArgumentException("Delivery zone not found with id: $id")

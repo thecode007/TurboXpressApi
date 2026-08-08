@@ -4,6 +4,8 @@ import com.thecode007.turboxpress.dto.AppSettingResponse
 import com.thecode007.turboxpress.dto.UpdateAppSettingRequest
 import com.thecode007.turboxpress.entity.AppSetting
 import com.thecode007.turboxpress.repository.AppSettingRepository
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -14,6 +16,7 @@ class AppSettingService(
 ) {
 
     @Transactional
+    @Cacheable(value = ["settings"])
     fun getSettings(): AppSettingResponse {
         val setting = appSettingRepository.findById(1L).orElseGet {
             appSettingRepository.save(AppSetting(id = 1L))
@@ -29,6 +32,7 @@ class AppSettingService(
     }
 
     @Transactional
+    @CacheEvict(value = ["settings"], allEntries = true)
     fun updateSettings(request: UpdateAppSettingRequest): AppSettingResponse {
         val setting = appSettingRepository.findById(1L).orElseGet {
             AppSetting(id = 1L)

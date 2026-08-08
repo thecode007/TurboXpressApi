@@ -110,4 +110,19 @@ class ProfileController(
             ResponseEntity.internalServerError().body(BaseResponse.error("Failed to update status: ${e.message}"))
         }
     }
+
+    @PatchMapping("/language")
+    fun updateLanguage(
+        @AuthenticationPrincipal principal: PermissionDecorator,
+        @RequestParam lang: String
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        val userId = UUID.fromString(principal.getUserId())
+        return try {
+            profileService.updateLanguage(userId, lang)
+            ResponseEntity.ok(BaseResponse.success("Language preference updated to $lang"))
+        } catch (e: Exception) {
+            logger.error("Failed to update language for user: $userId", e)
+            ResponseEntity.internalServerError().body(BaseResponse.error("Failed to update language: ${e.message}"))
+        }
+    }
 }
