@@ -26,9 +26,12 @@ class AdminDriverService(
     private val roleRepository: RoleRepository,
     private val passwordEncoder: PasswordEncoder,
     private val driverLocationService: DriverLocationService,
-    @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-minutes:720}")
-    private val staleThresholdMinutes: Long = 720
+    @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-seconds:45}")
+    private val staleThresholdSeconds: Long = 45
 ) {
+
+    private fun onlineCutoff(): java.time.Instant =
+        java.time.Instant.now().minusSeconds(staleThresholdSeconds)
 
     @Transactional(readOnly = true)
     fun getAllActiveDrivers(pageable: Pageable, search: String?): PageResponse<DriverResponse> {
@@ -66,8 +69,7 @@ class AdminDriverService(
 
     @Transactional(readOnly = true)
     fun getAvailableDrivers(search: String?): List<DriverResponse> {
-        val cutoff = java.time.Instant.now().minus(staleThresholdMinutes, java.time.temporal.ChronoUnit.MINUTES)
-        val profiles = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser(cutoff)
+        val profiles = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser(onlineCutoff())
 
         val filtered = if (!search.isNullOrBlank()) {
             profiles.filter {
@@ -164,13 +166,18 @@ class AdminDriverService(
     }
 
     private fun DriverProfile.toDriverResponse(): DriverResponse {
+        val effectiveStatus = if (this.isEffectivelyOnline(onlineCutoff())) {
+            com.thecode007.turboxpress.entity.OnlineStatus.ONLINE.name
+        } else {
+            com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE.name
+        }
         return DriverResponse(
             phoneNumber = this.user.phoneNumber,
             username = this.user.username ?: this.user.phoneNumber,
             fullName = this.displayName ?: this.user.fullName,
             profilePictureUrl = this.profilePictureUrl,
             isActive = this.user.isActive,
-            onlineStatus = this.onlineStatus.name,
+            onlineStatus = effectiveStatus,
             monthlySubFee = this.monthlySubFee,
             billingCycle = this.billingCycle.name,
             nextBillingDate = this.nextBillingDate?.toString(),

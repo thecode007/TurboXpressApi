@@ -130,15 +130,21 @@ data class DriverProfile(
     }
 
     /**
-     * Checks whether the driver is verified, active, online, idle, and has a fresh heartbeat.
+     * Checks whether the driver is verified, active, online, and has a fresh heartbeat.
      */
-    fun isOnlineAndAvailable(cutoff: Instant? = null): Boolean {
-        val isFresh = cutoff == null || lastSeenAt == null || !lastSeenAt!!.isBefore(cutoff)
+    fun isEffectivelyOnline(cutoff: Instant? = null): Boolean {
+        val isFresh = cutoff == null || (lastSeenAt != null && !lastSeenAt!!.isBefore(cutoff))
         return user.isActive &&
                 verificationStatus == VerificationStatus.APPROVED &&
                 onlineStatus == OnlineStatus.ONLINE &&
-                status == DriverStatus.IDLE &&
                 isFresh
+    }
+
+    /**
+     * Checks whether the driver is verified, active, online, idle, and has a fresh heartbeat.
+     */
+    fun isOnlineAndAvailable(cutoff: Instant? = null): Boolean {
+        return isEffectivelyOnline(cutoff) && status == DriverStatus.IDLE
     }
 
     /**

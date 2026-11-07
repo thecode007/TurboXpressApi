@@ -23,12 +23,12 @@ class DriverLocationService(
     private val driverProfileRepository: DriverProfileRepository,
     private val restaurantRepository: RestaurantRepository,
     private val cacheManager: CacheManager,
-    @Value("\${driver.location.db-sync-interval-seconds:30}")
-    private val dbSyncIntervalSeconds: Long = 30,
+    @Value("\${driver.location.db-sync-interval-seconds:15}")
+    private val dbSyncIntervalSeconds: Long = 15,
     @Value("\${driver.location.min-distance-meters:25.0}")
     private val minDistanceMeters: Double = 25.0,
-    @Value("\${driver.online.stale-threshold-minutes:720}")
-    private val staleThresholdMinutes: Long = 720
+    @Value("\${driver.online.stale-threshold-seconds:45}")
+    private val staleThresholdSeconds: Long = 45
 ) {
     data class DriverPresenceEntry(
         val latitude: Double?,
@@ -130,7 +130,7 @@ class DriverLocationService(
         val restaurant = restaurantRepository.findById(restaurantId)
             .orElseThrow { ResourceNotFoundException("Restaurant not found") }
 
-        val cutoff = Instant.now().minus(staleThresholdMinutes, ChronoUnit.MINUTES)
+        val cutoff = Instant.now().minusSeconds(staleThresholdSeconds)
         val nearestDriver = driverProfileRepository.findNearestIdleDriver(restaurant.location, cutoff)
             ?: return null
 

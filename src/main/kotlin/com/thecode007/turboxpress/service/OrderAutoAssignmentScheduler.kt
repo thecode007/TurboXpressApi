@@ -17,21 +17,27 @@ class OrderAutoAssignmentScheduler(
     private val driverProfileRepository: DriverProfileRepository,
     private val orderService: OrderService,
     private val appSettingService: AppSettingService,
-    @Value("\${driver.online.stale-threshold-minutes:720}")
-    private val staleThresholdMinutes: Long = 720
+    private val orderEventBroadcaster: OrderEventBroadcaster,
+    @Value("\${driver.online.stale-threshold-seconds:45}")
+    private val staleThresholdSeconds: Long = 45
 ) {
     private val log = LoggerFactory.getLogger(OrderAutoAssignmentScheduler::class.java)
 
     /**
-     * Periodically sweeps idle drivers whose heartbeat has expired beyond [staleThresholdMinutes]
-     * and marks them OFFLINE so abandoned sessions do not remain online forever.
+     * Periodically sweeps online drivers whose heartbeat has expired beyond [staleThresholdSeconds]
+     * and marks them OFFLINE so closed/crashed apps do not remain online.
      */
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelay = 15000)
     fun sweepStaleOnlineDrivers() {
-        val cutoff = Instant.now().minus(staleThresholdMinutes, ChronoUnit.MINUTES)
+        val cutoff = Instant.now().minusSeconds(staleThresholdSeconds)
         val markedOffline = driverProfileRepository.markStaleIdleDriversOffline(cutoff)
         if (markedOffline > 0) {
-            log.info("Auto-offlined $markedOffline stale idle driver(s) with no activity since $cutoff")
+            log.info("Auto-offlined $markedOffline stale driver(s) with no activity since $cutoff")
+            orderEventBroadcaster.broadcast(
+                type = "DRIVER_STATUS_CHANGED",
+                orderId = 0L,
+                status = "OFFLINE"
+            )
         }
     }
 

@@ -37,11 +37,12 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
           AND p.verificationStatus = com.thecode007.turboxpress.entity.VerificationStatus.APPROVED
           AND p.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.ONLINE
           AND p.status = com.thecode007.turboxpress.entity.DriverStatus.IDLE
-          AND (p.lastSeenAt IS NULL OR p.lastSeenAt >= :cutoff)
+          AND p.lastSeenAt IS NOT NULL
+          AND p.lastSeenAt >= :cutoff
     """)
     fun findAllApprovedOnlineIdleDriversWithUser(
         @org.springframework.data.repository.query.Param("cutoff")
-        cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(12 * 3600)
+        cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(45)
     ): List<DriverProfile>
 
     /** Finds the nearest approved, active, online, idle driver using PostGIS <-> nearest-neighbor operator. */
@@ -54,7 +55,8 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
           AND d.online_status = 'ONLINE'
           AND d.status = 'IDLE'
           AND d.current_location IS NOT NULL
-          AND (d.last_seen_at IS NULL OR d.last_seen_at >= :cutoff)
+          AND d.last_seen_at IS NOT NULL
+          AND d.last_seen_at >= :cutoff
         ORDER BY d.current_location <-> :restaurantLocation
         LIMIT 1
         FOR UPDATE OF d SKIP LOCKED
@@ -62,7 +64,7 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
     fun findNearestIdleDriver(
         @org.springframework.data.repository.query.Param("restaurantLocation") restaurantLocation: org.locationtech.jts.geom.Point,
         @org.springframework.data.repository.query.Param("cutoff")
-        cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(12 * 3600)
+        cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(45)
     ): DriverProfile?
 
     @Modifying
@@ -79,9 +81,7 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
         UPDATE DriverProfile p
         SET p.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE
         WHERE p.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.ONLINE
-          AND p.status = com.thecode007.turboxpress.entity.DriverStatus.IDLE
-          AND p.lastSeenAt IS NOT NULL
-          AND p.lastSeenAt < :cutoff
+          AND (p.lastSeenAt IS NULL OR p.lastSeenAt < :cutoff)
     """)
     fun markStaleIdleDriversOffline(
         @org.springframework.data.repository.query.Param("cutoff") cutoff: java.time.Instant

@@ -28,8 +28,8 @@ class OrderService(
     private val orderEventBroadcaster: OrderEventBroadcaster,
     private val driverLocationService: DriverLocationService,
     private val entityManager: EntityManager,
-    @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-minutes:720}")
-    private val staleThresholdMinutes: Long = 720
+    @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-seconds:45}")
+    private val staleThresholdSeconds: Long = 45
 ) {
 
     companion object {
@@ -37,7 +37,7 @@ class OrderService(
     }
 
     private fun onlineCutoff(): java.time.Instant =
-        java.time.Instant.now().minus(staleThresholdMinutes, java.time.temporal.ChronoUnit.MINUTES)
+        java.time.Instant.now().minusSeconds(staleThresholdSeconds)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers

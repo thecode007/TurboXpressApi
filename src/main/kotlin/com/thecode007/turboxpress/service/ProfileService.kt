@@ -16,7 +16,10 @@ class ProfileService(
     private val userRepository: UserRepository,
     private val mediaService: MediaService,
     private val driverLocationService: DriverLocationService,
-    @org.springframework.context.annotation.Lazy private val orderService: OrderService
+    private val orderEventBroadcaster: OrderEventBroadcaster,
+    @org.springframework.context.annotation.Lazy private val orderService: OrderService,
+    @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-seconds:45}")
+    private val staleThresholdSeconds: Long = 45
 ) {
     private val logger = LoggerFactory.getLogger(ProfileService::class.java)
 
@@ -174,9 +177,17 @@ class ProfileService(
         val profile = driverProfileRepository.findById(userId).orElse(null)
             ?: return "OFFLINE"
 
-        if (profile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
-            driverLocationService.recordHeartbeat(userId)
+        val cutoff = java.time.Instant.now().minusSeconds(staleThresholdSeconds)
+        if (!profile.isEffectivelyOnline(cutoff)) {
+            if (profile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
+                profile.goOffline()
+                driverProfileRepository.save(profile)
+                driverLocationService.evictPresence(userId)
+            }
+            return "OFFLINE"
         }
+
+        driverLocationService.recordHeartbeat(userId)
         return profile.onlineStatus.name
     }
 
@@ -192,6 +203,12 @@ class ProfileService(
                 driverProfileRepository.save(profile)
                 driverLocationService.recordHeartbeat(userId)
                 logger.info("Updated online status to ONLINE for driver $userId")
+                orderEventBroadcaster.broadcast(
+                    type = "DRIVER_STATUS_CHANGED",
+                    orderId = 0L,
+                    status = "ONLINE",
+                    driverName = profile.displayName ?: profile.user.fullName
+                )
                 orderService.broadcastNextPendingOrder()
             }
             com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE -> {
@@ -199,6 +216,12 @@ class ProfileService(
                 driverProfileRepository.save(profile)
                 driverLocationService.evictPresence(userId)
                 logger.info("Updated online status to OFFLINE for driver $userId")
+                orderEventBroadcaster.broadcast(
+                    type = "DRIVER_STATUS_CHANGED",
+                    orderId = 0L,
+                    status = "OFFLINE",
+                    driverName = profile.displayName ?: profile.user.fullName
+                )
             }
         }
     }

@@ -18,7 +18,8 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
     private val driverProfileRepository: DriverProfileRepository,
-    private val driverLocationService: DriverLocationService
+    private val driverLocationService: DriverLocationService,
+    private val orderEventBroadcaster: OrderEventBroadcaster
 ) {
 
     fun login(request: LoginRequest): LoginResponse {
@@ -70,6 +71,12 @@ class AuthService(
             profile.goOffline()
             driverProfileRepository.save(profile)
             driverLocationService.evictPresence(userId)
+            orderEventBroadcaster.broadcast(
+                type = "DRIVER_STATUS_CHANGED",
+                orderId = 0L,
+                status = "OFFLINE",
+                driverName = profile.displayName ?: userPrincipal.getFullName()
+            )
         }
     }
 }
