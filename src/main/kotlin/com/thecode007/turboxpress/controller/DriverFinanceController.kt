@@ -13,17 +13,25 @@ class DriverFinanceController(
 ) {
 
     @GetMapping("/{phoneNumber}/finance")
-    fun getFinanceSummary(@PathVariable phoneNumber: String): ResponseEntity<BaseResponse<DriverFinanceSummary>> {
-        val summary = financeService.getDriverSummary(phoneNumber)
+    fun getFinanceSummary(
+        @PathVariable phoneNumber: String,
+        @RequestParam(required = false) period: String?,
+        @RequestParam(required = false) date: String?,
+        @RequestParam(required = false) month: String?
+    ): ResponseEntity<BaseResponse<DriverFinanceSummary>> {
+        val summary = financeService.getDriverSummary(phoneNumber, period, date, month)
         return ResponseEntity.ok(BaseResponse.success("Driver finance summary retrieved successfully", summary))
     }
 
     @PostMapping("/{phoneNumber}/settle")
     fun settleDriver(
         @PathVariable phoneNumber: String,
-        @RequestParam(required = false) amount: Double?
+        @RequestParam(required = false) amount: Double?,
+        @RequestParam(required = false) period: String?,
+        @RequestParam(required = false) date: String?,
+        @RequestParam(required = false) month: String?
     ): ResponseEntity<BaseResponse<DriverFinanceSummary>> {
-        val summary = financeService.settleDriver(phoneNumber, amount)
+        val summary = financeService.settleDriver(phoneNumber, amount, period, date, month)
         return ResponseEntity.ok(BaseResponse.success("Driver account settled successfully", summary))
     }
 }

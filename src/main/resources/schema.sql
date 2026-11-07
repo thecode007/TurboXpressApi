@@ -147,6 +147,9 @@ CREATE INDEX IF NOT EXISTS idx_driver_profiles_location ON driver_profiles USING
 ALTER TABLE driver_profiles DROP COLUMN IF EXISTS is_available;
 ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS online_status VARCHAR(20) NOT NULL DEFAULT 'OFFLINE';
 ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS profile_picture_url VARCHAR(500);
+ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
+UPDATE driver_profiles SET status = 'IDLE' WHERE status = 'OFFLINE';
+UPDATE driver_profiles SET last_seen_at = COALESCE(last_seen_at, created_at, CURRENT_TIMESTAMP) WHERE online_status = 'ONLINE' AND last_seen_at IS NULL;
 
 -- Owner Profiles
 CREATE TABLE IF NOT EXISTS owner_profiles (
@@ -343,6 +346,9 @@ CREATE INDEX IF NOT EXISTS idx_driver_profiles_location ON driver_profiles USING
 ALTER TABLE driver_profiles DROP COLUMN IF EXISTS is_available;
 ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS online_status VARCHAR(20) NOT NULL DEFAULT 'OFFLINE';
 ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS profile_picture_url VARCHAR(500);
+ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
+UPDATE driver_profiles SET status = 'IDLE' WHERE status = 'OFFLINE';
+UPDATE driver_profiles SET last_seen_at = COALESCE(last_seen_at, created_at, CURRENT_TIMESTAMP) WHERE online_status = 'ONLINE' AND last_seen_at IS NULL;
 
 -- Owner Profiles
 CREATE TABLE IF NOT EXISTS owner_profiles (

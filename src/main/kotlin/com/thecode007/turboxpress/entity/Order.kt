@@ -84,7 +84,7 @@ class Order(
     var routeDistanceKm: Double? = null,
 
     @Column(name = "accepted_at")
-    var acceptedAt: Instant? = null,
+    var acceptedAt: Instant? = Instant.now(),
 
     @Column(name = "ready_at")
     var readyAt: Instant? = null,

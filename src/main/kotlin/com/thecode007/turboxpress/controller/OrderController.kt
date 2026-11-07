@@ -87,8 +87,21 @@ class OrderController(
     fun getAllOrders(
         @RequestParam(required = false) since: String? = null
     ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
-        val sinceInstant = since?.takeIf { it.isNotBlank() }?.let {
-            try { java.time.Instant.parse(it) } catch (_: Exception) { null }
+        val sinceInstant = since?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+            val normalized = raw.replace(' ', '+')
+            runCatching { java.time.Instant.parse(normalized) }
+                .recoverCatching { java.time.OffsetDateTime.parse(normalized).toInstant() }
+                .recoverCatching {
+                    java.time.LocalDateTime.parse(raw)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toInstant()
+                }
+                .recoverCatching {
+                    java.time.LocalDate.parse(raw)
+                        .atStartOfDay(java.time.ZoneId.systemDefault())
+                        .toInstant()
+                }
+                .getOrNull()
         }
         val orders = orderService.getAllOrders(sinceInstant)
         return ResponseEntity.ok(BaseResponse.success("Orders retrieved successfully", orders))

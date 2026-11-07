@@ -15,6 +15,7 @@ class ProfileService(
     private val ownerProfileRepository: OwnerProfileRepository,
     private val userRepository: UserRepository,
     private val mediaService: MediaService,
+    private val driverLocationService: DriverLocationService,
     @org.springframework.context.annotation.Lazy private val orderService: OrderService
 ) {
     private val logger = LoggerFactory.getLogger(ProfileService::class.java)
@@ -127,6 +128,8 @@ class ProfileService(
                 }
                 
                 profile.verificationStatus = VerificationStatus.PENDING
+                profile.goOffline()
+                driverLocationService.evictPresence(userId)
                 driverProfileRepository.save(profile)
                 logger.info("Driver profile submitted for verification for $userId")
             }
@@ -166,23 +169,37 @@ class ProfileService(
         }
     }
 
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Transactional
     fun getOnlineStatus(userId: UUID): String {
-        return driverProfileRepository.findById(userId)
-            .map { it.onlineStatus.name }
-            .orElse("OFFLINE")
+        val profile = driverProfileRepository.findById(userId).orElse(null)
+            ?: return "OFFLINE"
+
+        if (profile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
+            driverLocationService.recordHeartbeat(userId)
+        }
+        return profile.onlineStatus.name
     }
 
     @Transactional
     fun updateOnlineStatus(userId: UUID, status: String) {
-        val profile = driverProfileRepository.findById(userId)
-            .orElseThrow { Exception("Driver profile not found") }
-        profile.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.valueOf(status.uppercase())
-        driverProfileRepository.save(profile)
-        logger.info("Updated online status to $status for driver $userId")
+        val profile = driverProfileRepository.findByUserIdWithUser(userId)
+            .orElseThrow { com.thecode007.turboxpress.exception.ResourceNotFoundException("Driver profile not found") }
+        val targetStatus = com.thecode007.turboxpress.entity.OnlineStatus.fromString(status)
 
-        if (status.uppercase() == "ONLINE") {
-            orderService.broadcastNextPendingOrder()
+        when (targetStatus) {
+            com.thecode007.turboxpress.entity.OnlineStatus.ONLINE -> {
+                profile.goOnline()
+                driverProfileRepository.save(profile)
+                driverLocationService.recordHeartbeat(userId)
+                logger.info("Updated online status to ONLINE for driver $userId")
+                orderService.broadcastNextPendingOrder()
+            }
+            com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE -> {
+                profile.goOffline()
+                driverProfileRepository.save(profile)
+                driverLocationService.evictPresence(userId)
+                logger.info("Updated online status to OFFLINE for driver $userId")
+            }
         }
     }
 
@@ -212,7 +229,8 @@ class ProfileService(
             profile.idDocumentUrl = null
             profile.criminalRecordUrl = null
             profile.verificationStatus = VerificationStatus.REJECTED
-            profile.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE
+            profile.goOffline()
+            driverLocationService.evictPresence(userId)
 
             driverProfileRepository.save(profile)
             logger.info("Deleted driver files and reset verification status for driver $userId.")

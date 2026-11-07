@@ -105,6 +105,9 @@ data class DriverProfile(
     @Column(name = "current_location", columnDefinition = "geometry(Point, 4326)")
     var currentLocation: org.locationtech.jts.geom.Point? = null,
 
+    @Column(name = "last_seen_at")
+    var lastSeenAt: Instant? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     var status: DriverStatus = DriverStatus.IDLE,
@@ -126,6 +129,50 @@ data class DriverProfile(
                 !criminalRecordUrl.isNullOrBlank()
     }
 
+    /**
+     * Checks whether the driver is verified, active, online, idle, and has a fresh heartbeat.
+     */
+    fun isOnlineAndAvailable(cutoff: Instant? = null): Boolean {
+        val isFresh = cutoff == null || lastSeenAt == null || !lastSeenAt!!.isBefore(cutoff)
+        return user.isActive &&
+                verificationStatus == VerificationStatus.APPROVED &&
+                onlineStatus == OnlineStatus.ONLINE &&
+                status == DriverStatus.IDLE &&
+                isFresh
+    }
+
+    /**
+     * Transitions the driver into the ONLINE state and refreshes their heartbeat timestamp.
+     * Ensures task status is reset to IDLE unless the driver is actively ON_DELIVERY.
+     */
+    fun goOnline(now: Instant = Instant.now()) {
+        check(verificationStatus == VerificationStatus.APPROVED) {
+            "Only approved drivers can go online (current status: $verificationStatus)"
+        }
+        check(user.isActive) {
+            "Inactive driver account cannot go online"
+        }
+        onlineStatus = OnlineStatus.ONLINE
+        if (status != DriverStatus.ON_DELIVERY) {
+            status = DriverStatus.IDLE
+        }
+        lastSeenAt = now
+    }
+
+    /**
+     * Transitions the driver into the OFFLINE state while keeping task status valid.
+     */
+    fun goOffline() {
+        onlineStatus = OnlineStatus.OFFLINE
+        if (status != DriverStatus.ON_DELIVERY) {
+            status = DriverStatus.IDLE
+        }
+    }
+
+    fun recordHeartbeat(now: Instant = Instant.now()) {
+        lastSeenAt = now
+    }
+
     constructor() : this(
         userId = UUID.randomUUID(),
         user = User(fullName = "", phoneNumber = "")
@@ -134,8 +181,7 @@ data class DriverProfile(
 
 enum class DriverStatus {
     IDLE,
-    ON_DELIVERY,
-    OFFLINE
+    ON_DELIVERY
 }
 
 enum class BillingCycle {
@@ -146,5 +192,11 @@ enum class BillingCycle {
 
 enum class OnlineStatus {
     ONLINE,
-    OFFLINE
+    OFFLINE;
+
+    companion object {
+        fun fromString(value: String): OnlineStatus =
+            entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
+                ?: throw IllegalArgumentException("Invalid online status '$value'. Must be ONLINE or OFFLINE.")
+    }
 }

@@ -27,6 +27,22 @@ class DriverLocationController(
         return ResponseEntity.ok().build()
     }
 
+    @PostMapping("/heartbeat")
+    fun heartbeat(
+        @AuthenticationPrincipal principal: PermissionDecorator,
+        @RequestBody(required = false) request: DriverLocationUpdateRequest?
+    ): ResponseEntity<Void> {
+        val driverId = UUID.fromString(principal.getUserId())
+        if (request != null) {
+            driverLocationService.updateLocation(
+                UpdateLocationRequest(driverId, request.latitude, request.longitude)
+            )
+        } else {
+            driverLocationService.recordHeartbeat(driverId)
+        }
+        return ResponseEntity.ok().build()
+    }
+
     @GetMapping("/nearest")
     fun getNearestDriver(@RequestParam restaurantId: Long): ResponseEntity<NearestDriverResponse> {
         val response = driverLocationService.findNearestDriver(restaurantId)

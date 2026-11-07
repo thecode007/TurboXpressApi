@@ -26,12 +26,18 @@ class OrderService(
     private val roleRepository: RoleRepository,
     private val appSettingRepository: com.thecode007.turboxpress.repository.AppSettingRepository,
     private val orderEventBroadcaster: OrderEventBroadcaster,
-    private val entityManager: EntityManager
+    private val driverLocationService: DriverLocationService,
+    private val entityManager: EntityManager,
+    @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-minutes:720}")
+    private val staleThresholdMinutes: Long = 720
 ) {
 
     companion object {
         private val log = LoggerFactory.getLogger(OrderService::class.java)
     }
+
+    private fun onlineCutoff(): java.time.Instant =
+        java.time.Instant.now().minus(staleThresholdMinutes, java.time.temporal.ChronoUnit.MINUTES)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
@@ -230,6 +236,7 @@ class OrderService(
         }
     }
 
+    @CacheEvict(value = ["driver-work-pages"], allEntries = true)
     @Transactional
     fun updateOrder(id: Long, request: OrderCreateRequest): OrderResponse {
         val order = orderRepository.findById(id)
@@ -326,7 +333,9 @@ class OrderService(
 
     @Transactional(readOnly = true)
     fun getDriverOrderHistory(driverId: java.util.UUID): com.thecode007.turboxpress.dto.DriverWorkResponse {
-        val orders = orderRepository.findByDriverIdOrderByCreatedAtDesc(driverId).map { mapToResponse(it) }
+        val orders = orderRepository.findByDriverIdOrderByCreatedAtDesc(driverId)
+            .filter { it.status == OrderStatus.DELIVERED || it.deliveryStatus == DeliveryStatus.DELIVERED }
+            .map { mapToResponse(it) }
         
         var totalOrders = 0
         var totalDeliveryFees = 0.0
@@ -339,7 +348,8 @@ class OrderService(
             totalOrders++
             totalDeliveryFees += order.deliveryFee
             
-            val adjustedInstant = order.createdAt.minus(2, java.time.temporal.ChronoUnit.HOURS)
+            val baseInstant = order.deliveredAt ?: order.createdAt
+            val adjustedInstant = baseInstant.minus(2, java.time.temporal.ChronoUnit.HOURS)
             val dateStr = formatter.format(adjustedInstant)
             
             groupedMap.computeIfAbsent(dateStr) { mutableListOf() }.add(order)
@@ -378,12 +388,18 @@ class OrderService(
      * @param driverId  the requesting driver's UUID
      * @param dateStr   "YYYY-MM-DD" in UTC-adjusted time; null → today
      */
-    @Cacheable(value = ["driver-work-pages"], key = "#driverId.toString() + ':' + (#dateStr ?: T(java.time.LocalDate).now(T(java.time.ZoneOffset).UTC).toString())")
+    @Cacheable(
+        value = ["driver-work-pages"],
+        key = "#driverId.toString() + ':' + ((#dateStr != null && !#dateStr.isBlank()) ? #dateStr : T(java.time.Instant).now().minus(2, T(java.time.temporal.ChronoUnit).HOURS).atZone(T(java.time.ZoneOffset).UTC).toLocalDate().toString())"
+    )
     @Transactional(readOnly = true)
     fun getDriverWorkPage(driverId: java.util.UUID, dateStr: String?): DailyWorkPage {
-        // Resolve the target date — default to today in UTC
+        // Resolve the target date — default to today in UTC shifted by -2h (matching windowStart)
         val targetDate: java.time.LocalDate = if (dateStr.isNullOrBlank()) {
-            java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+            java.time.Instant.now()
+                .minus(2, java.time.temporal.ChronoUnit.HOURS)
+                .atZone(java.time.ZoneOffset.UTC)
+                .toLocalDate()
         } else {
             java.time.LocalDate.parse(dateStr, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
         }
@@ -480,7 +496,7 @@ class OrderService(
 
         val restaurantLocation = order.restaurant?.location
             ?: throw ResourceNotFoundException("Cannot auto-assign: order has no restaurant location")
-        val nearestProfile = driverProfileRepository.findNearestIdleDriver(restaurantLocation)
+        val nearestProfile = driverProfileRepository.findNearestIdleDriver(restaurantLocation, onlineCutoff())
             ?: throw ResourceNotFoundException("No idle drivers available near the restaurant")
 
         order.driver = nearestProfile
@@ -516,9 +532,9 @@ class OrderService(
 
         order.driver = null
 
-        driverProfile.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE
-        driverProfile.status = DriverStatus.IDLE
+        driverProfile.goOffline()
         driverProfileRepository.save(driverProfile)
+        driverLocationService.evictPresence(driverProfile.userId)
 
         val savedOrder = orderRepository.save(order)
 
@@ -564,7 +580,7 @@ class OrderService(
         log.info("[broadcastNextPendingOrder] Next order to broadcast: #${nextOrder.id} (status=${nextOrder.status})")
         println(">>> [broadcastNextPendingOrder] Next order: #${nextOrder.id} (status=${nextOrder.status})")
 
-        val idleDrivers = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser()
+        val idleDrivers = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser(onlineCutoff())
         val phones = idleDrivers.mapNotNull { it.user.phoneNumber }
         log.info("[broadcastNextPendingOrder] Found ${phones.size} ONLINE+IDLE driver(s): $phones")
         println(">>> [broadcastNextPendingOrder] Found ${phones.size} ONLINE+IDLE driver(s): $phones")
@@ -589,17 +605,18 @@ class OrderService(
 
         val user = userRepository.findByPhoneNumber(driverPhoneNumber)
             .orElseThrow { ResourceNotFoundException("User not found with phone: $driverPhoneNumber") }
-        val newDriverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
+        val newDriverProfile = user.id?.let { driverProfileRepository.findByUserIdWithUser(it).orElse(null) }
             ?: throw ResourceNotFoundException("Driver profile not found with phone: $driverPhoneNumber")
 
-        if (newDriverProfile.status != DriverStatus.IDLE) {
-            throw IllegalStateException("Driver is not IDLE")
+        if (!newDriverProfile.isOnlineAndAvailable(onlineCutoff())) {
+            throw IllegalStateException("Driver is not online and available to accept orders")
         }
 
         order.driver = newDriverProfile
         order.deliveryStatus = DeliveryStatus.ASSIGNED
 
         newDriverProfile.status = DriverStatus.ON_DELIVERY
+        newDriverProfile.recordHeartbeat()
         driverProfileRepository.save(newDriverProfile)
 
         val savedOrder = orderRepository.save(order)
@@ -608,7 +625,7 @@ class OrderService(
         notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
 
         // Dismiss the order from all other drivers' screens
-        val otherDriverPhones = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser()
+        val otherDriverPhones = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser(onlineCutoff())
             .mapNotNull { it.user.phoneNumber }
         notificationService.notifyBroadcastOrderTaken(savedOrder.id, driverPhoneNumber, otherDriverPhones)
 
@@ -635,7 +652,7 @@ class OrderService(
      * We evict ALL entries for this driver (allEntries = false is not enough
      * because we don't know which date the order will appear on at call time).
      */
-    @CacheEvict(value = ["driver-work-pages"], key = "#result.driverId + ':' + T(java.time.LocalDate).now(T(java.time.ZoneOffset).UTC).toString()", condition = "#result.driverId != null")
+    @CacheEvict(value = ["driver-work-pages"], allEntries = true)
     @Transactional
     fun updateOrderStatus(orderId: Long, status: OrderStatus): OrderResponse {
         val order = orderRepository.findById(orderId)
@@ -652,13 +669,27 @@ class OrderService(
         when (status) {
             OrderStatus.ACCEPTED, OrderStatus.PREPARING -> if (order.acceptedAt == null) order.acceptedAt = now
             OrderStatus.READY_FOR_PICKUP -> {
+                if (order.acceptedAt == null) order.acceptedAt = order.createdAt
                 if (order.readyAt == null) order.readyAt = now
                 order.driver?.user?.phoneNumber?.let { driverPhone ->
                     notificationService.notifyDriverOrderReady(order.id, driverPhone)
                 }
             }
-            OrderStatus.ON_THE_WAY -> if (order.pickedUpAt == null) order.pickedUpAt = now
-            OrderStatus.DELIVERED -> if (order.deliveredAt == null) order.deliveredAt = now
+            OrderStatus.ON_THE_WAY -> {
+                if (order.acceptedAt == null) order.acceptedAt = order.createdAt
+                if (order.readyAt == null) order.readyAt = now
+                if (order.pickedUpAt == null) order.pickedUpAt = now
+                order.deliveryStatus = DeliveryStatus.ON_THE_WAY
+            }
+            OrderStatus.DELIVERED -> {
+                if (order.acceptedAt == null) order.acceptedAt = order.createdAt
+                if (order.readyAt == null) order.readyAt = order.pickedUpAt ?: now
+                if (order.deliveredAt == null) order.deliveredAt = now
+                order.deliveryStatus = DeliveryStatus.DELIVERED
+            }
+            OrderStatus.CANCELLED -> {
+                order.deliveryStatus = DeliveryStatus.CANCELLED
+            }
             else -> {}
         }
 
@@ -711,7 +742,7 @@ class OrderService(
     }
 
     /** Evict cached work pages when delivery status changes (e.g. DELIVERED). */
-    @CacheEvict(value = ["driver-work-pages"], key = "#result.driverId + ':' + T(java.time.LocalDate).now(T(java.time.ZoneOffset).UTC).toString()", condition = "#result.driverId != null")
+    @CacheEvict(value = ["driver-work-pages"], allEntries = true)
     @Transactional
     fun updateDeliveryStatus(orderId: Long, status: DeliveryStatus): OrderResponse {
         val order = orderRepository.findById(orderId)
@@ -725,10 +756,14 @@ class OrderService(
                 if (order.driverArrivedAtRestaurantAt == null) order.driverArrivedAtRestaurantAt = now
             }
             DeliveryStatus.ON_THE_WAY -> {
+                if (order.acceptedAt == null) order.acceptedAt = order.createdAt
+                if (order.readyAt == null) order.readyAt = order.driverArrivedAtRestaurantAt ?: now
                 if (order.pickedUpAt == null) order.pickedUpAt = now
                 order.status = OrderStatus.ON_THE_WAY
             }
             DeliveryStatus.DELIVERED -> {
+                if (order.acceptedAt == null) order.acceptedAt = order.createdAt
+                if (order.readyAt == null) order.readyAt = order.pickedUpAt ?: order.driverArrivedAtRestaurantAt ?: now
                 if (order.deliveredAt == null) order.deliveredAt = now
                 order.status = OrderStatus.DELIVERED
                 
@@ -788,11 +823,16 @@ class OrderService(
     // Active delivery query
     // ─────────────────────────────────────────────────────────────────────────
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun getActiveDeliveryForDriver(driverId: java.util.UUID): OrderResponse? {
         val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.ON_THE_WAY)
         val orders = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtDesc(driverId, targetStatuses)
         val assignedOrder = orders.firstOrNull()?.let { mapToResponse(it) }
+
+        val driverProfile = driverProfileRepository.findByUserIdWithUser(driverId).orElse(null)
+        if (driverProfile != null && driverProfile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
+            driverLocationService.recordHeartbeat(driverId)
+        }
 
         if (assignedOrder != null) {
             return assignedOrder
@@ -801,8 +841,7 @@ class OrderService(
         // Fallback: If in manual mode, and driver is ONLINE & IDLE, serve the broadcast queue top item
         val setting = appSettingRepository.findById(1L).orElse(null)
         if (setting != null && !setting.isAutoAssignEnabled) {
-            val driverProfile = driverProfileRepository.findById(driverId).orElse(null)
-            if (driverProfile != null && driverProfile.status == DriverStatus.IDLE && driverProfile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
+            if (driverProfile != null && driverProfile.isOnlineAndAvailable(onlineCutoff())) {
                 val broadcastStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
                 val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(broadcastStatuses)
                 val nextOrder = pendingOrders.firstOrNull()
@@ -813,27 +852,6 @@ class OrderService(
         }
 
         return null
-    }
-
-    @Transactional
-    fun assignDriverFromScheduler(orderId: Long, driverProfileId: java.util.UUID): Boolean {
-        val order = orderRepository.findById(orderId).orElse(null) ?: return false
-
-        if (order.driver != null) return false
-
-        val driverProfile = driverProfileRepository.findById(driverProfileId).orElse(null) ?: return false
-
-        order.driver = driverProfile
-        order.deliveryStatus = DeliveryStatus.ASSIGNED
-        orderRepository.save(order)
-
-        driverProfile.status = DriverStatus.ON_DELIVERY
-        driverProfileRepository.save(driverProfile)
-
-        order.restaurant?.owner?.phoneNumber?.let { notificationService.notifyFrontend(order.id, it) }
-        notificationService.notifyDriver(order.id, driverProfile.user.phoneNumber)
-
-        return true
     }
 
     // ─────────────────────────────────────────────────────────────────────────

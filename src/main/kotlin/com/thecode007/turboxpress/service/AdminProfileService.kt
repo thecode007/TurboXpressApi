@@ -324,6 +324,9 @@ class AdminProfileService(
                 val p = driverProfileRepository.findByUserId(userId)
                     .orElseThrow { NoSuchElementException("DriverProfile not found for userId=$userId") }
                 p.verificationStatus = status; p.approvedBy = adminId; p.adminNote = note
+                if (status != VerificationStatus.APPROVED) {
+                    p.goOffline()
+                }
                 driverProfileRepository.save(p)
             }
             "MERCHANT" -> {

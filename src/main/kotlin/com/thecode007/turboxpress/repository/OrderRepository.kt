@@ -22,31 +22,53 @@ interface OrderRepository : JpaRepository<Order, Long> {
      * Fetch all DELIVERED orders for a driver within a UTC time window.
      * Used to load a single day's work page.
      */
+    @Query("""
+        SELECT o FROM Order o
+        WHERE o.driver.userId = :driverId
+          AND o.status = :status
+          AND COALESCE(o.deliveredAt, o.createdAt) >= :start
+          AND COALESCE(o.deliveredAt, o.createdAt) < :end
+        ORDER BY COALESCE(o.deliveredAt, o.createdAt) DESC
+    """)
     fun findByDriverIdAndStatusAndDeliveredAtBetweenOrderByDeliveredAtDesc(
-        driverId: java.util.UUID,
-        status: OrderStatus,
-        start: java.time.Instant,
-        end: java.time.Instant
+        @Param("driverId") driverId: java.util.UUID,
+        @Param("status") status: OrderStatus,
+        @Param("start") start: java.time.Instant,
+        @Param("end") end: java.time.Instant
     ): List<Order>
 
     /**
      * Returns true when at least one DELIVERED order exists before [before].
      * Used to compute [DailyWorkPage.hasPrevious] without loading extra rows.
      */
+    @Query("""
+        SELECT CASE WHEN COUNT(o) > 0 THEN true ELSE false END
+        FROM Order o
+        WHERE o.driver.userId = :driverId
+          AND o.status = :status
+          AND COALESCE(o.deliveredAt, o.createdAt) < :before
+    """)
     fun existsByDriverIdAndStatusAndDeliveredAtBefore(
-        driverId: java.util.UUID,
-        status: OrderStatus,
-        before: java.time.Instant
+        @Param("driverId") driverId: java.util.UUID,
+        @Param("status") status: OrderStatus,
+        @Param("before") before: java.time.Instant
     ): Boolean
 
     /**
      * Returns true when at least one DELIVERED order exists from [from] onwards.
      * Used to compute [DailyWorkPage.hasNext] without loading extra rows.
      */
+    @Query("""
+        SELECT CASE WHEN COUNT(o) > 0 THEN true ELSE false END
+        FROM Order o
+        WHERE o.driver.userId = :driverId
+          AND o.status = :status
+          AND COALESCE(o.deliveredAt, o.createdAt) >= :from
+    """)
     fun existsByDriverIdAndStatusAndDeliveredAtGreaterThanEqual(
-        driverId: java.util.UUID,
-        status: OrderStatus,
-        from: java.time.Instant
+        @Param("driverId") driverId: java.util.UUID,
+        @Param("status") status: OrderStatus,
+        @Param("from") from: java.time.Instant
     ): Boolean
 
     /**
@@ -61,7 +83,7 @@ interface OrderRepository : JpaRepository<Order, Long> {
             AND o.createdAt >= :thirtyDaysAgo
         ) OR (
             o.status = 'DELIVERED'
-            AND o.deliveredAt >= :twentyFourHoursAgo
+            AND COALESCE(o.deliveredAt, o.createdAt) >= :twentyFourHoursAgo
         ) OR (
             o.status IN ('CANCELLED', 'REJECTED')
             AND o.createdAt >= :twentyFourHoursAgo
@@ -79,6 +101,17 @@ interface OrderRepository : JpaRepository<Order, Long> {
 
     // ── Analytics (Admin Driver Deliveries) ──────────────────────────────────
     fun findByStatusAndDeliveredAtAfterOrderByDeliveredAtDesc(status: OrderStatus, after: java.time.Instant): List<Order>
+
+    @Query("""
+        SELECT o FROM Order o
+        JOIN FETCH o.driver d
+        JOIN FETCH d.user
+        WHERE (o.status = com.thecode007.turboxpress.entity.OrderStatus.DELIVERED
+               OR o.deliveryStatus = com.thecode007.turboxpress.entity.DeliveryStatus.DELIVERED)
+          AND COALESCE(o.deliveredAt, o.createdAt) >= :after
+        ORDER BY COALESCE(o.deliveredAt, o.createdAt) DESC
+    """)
+    fun findDeliveredOrdersWithDriverAfter(@Param("after") after: java.time.Instant): List<Order>
 }
 
 

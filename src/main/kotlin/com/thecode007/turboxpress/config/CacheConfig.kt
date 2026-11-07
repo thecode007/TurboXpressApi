@@ -23,7 +23,7 @@ class CacheConfig {
             .maximumSize(500)
             .expireAfterWrite(60, TimeUnit.MINUTES)
 
-        val cacheManager = CaffeineCacheManager("driver-work-pages", "restaurants", "zones", "settings")
+        val cacheManager = CaffeineCacheManager("driver-work-pages", "driver-presence", "restaurants", "zones", "settings")
         cacheManager.setCaffeine(caffeine)
         return cacheManager
     }

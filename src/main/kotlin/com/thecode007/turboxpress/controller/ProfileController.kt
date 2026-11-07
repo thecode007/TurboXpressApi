@@ -104,7 +104,13 @@ class ProfileController(
         val userId = UUID.fromString(principal.getUserId())
         return try {
             profileService.updateOnlineStatus(userId, status)
-            ResponseEntity.ok(BaseResponse.success("Online status updated to $status"))
+            ResponseEntity.ok(BaseResponse.success("Online status updated to ${status.uppercase()}"))
+        } catch (e: IllegalArgumentException) {
+            logger.warn("Invalid online status request for user $userId: ${e.message}")
+            ResponseEntity.badRequest().body(BaseResponse.error("Invalid status: ${e.message}", "BAD_REQUEST"))
+        } catch (e: IllegalStateException) {
+            logger.warn("Rejected online status transition for user $userId: ${e.message}")
+            ResponseEntity.badRequest().body(BaseResponse.error("Cannot update status: ${e.message}", "BAD_REQUEST"))
         } catch (e: Exception) {
             logger.error("Failed to update online status for user: $userId", e)
             ResponseEntity.internalServerError().body(BaseResponse.error("Failed to update status: ${e.message}"))

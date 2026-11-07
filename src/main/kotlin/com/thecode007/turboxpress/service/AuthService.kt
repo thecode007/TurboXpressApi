@@ -7,18 +7,18 @@ import com.thecode007.turboxpress.repository.UserRepository
 import com.thecode007.turboxpress.security.JwtService
 import com.thecode007.turboxpress.security.UserPrincipal
 import com.thecode007.turboxpress.security.decorator.PermissionDecorator
-import com.thecode007.turboxpress.entity.DriverStatus
-import com.thecode007.turboxpress.entity.OnlineStatus
 import com.thecode007.turboxpress.repository.DriverProfileRepository
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class AuthService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
-    private val driverProfileRepository: DriverProfileRepository
+    private val driverProfileRepository: DriverProfileRepository,
+    private val driverLocationService: DriverLocationService
 ) {
 
     fun login(request: LoginRequest): LoginResponse {
@@ -61,13 +61,15 @@ class AuthService(
         )
     }
 
+    @Transactional
     fun logout(userPrincipal: PermissionDecorator) {
-        val profileOpt = driverProfileRepository.findByUserId(java.util.UUID.fromString(userPrincipal.getUserId()))
+        val userId = java.util.UUID.fromString(userPrincipal.getUserId())
+        val profileOpt = driverProfileRepository.findByUserId(userId)
         if (profileOpt.isPresent) {
             val profile = profileOpt.get()
-            profile.onlineStatus = OnlineStatus.OFFLINE
-            profile.status = DriverStatus.OFFLINE
+            profile.goOffline()
             driverProfileRepository.save(profile)
+            driverLocationService.evictPresence(userId)
         }
     }
 }

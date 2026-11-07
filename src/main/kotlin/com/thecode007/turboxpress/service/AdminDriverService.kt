@@ -24,7 +24,10 @@ class AdminDriverService(
     private val userRepository: UserRepository,
     private val driverProfileRepository: DriverProfileRepository,
     private val roleRepository: RoleRepository,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
+    private val driverLocationService: DriverLocationService,
+    @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-minutes:720}")
+    private val staleThresholdMinutes: Long = 720
 ) {
 
     @Transactional(readOnly = true)
@@ -63,11 +66,8 @@ class AdminDriverService(
 
     @Transactional(readOnly = true)
     fun getAvailableDrivers(search: String?): List<DriverResponse> {
-        val profiles = driverProfileRepository.findAllByVerificationStatusAndOnlineStatusAndStatus(
-            VerificationStatus.APPROVED,
-            com.thecode007.turboxpress.entity.OnlineStatus.ONLINE,
-            com.thecode007.turboxpress.entity.DriverStatus.IDLE
-        )
+        val cutoff = java.time.Instant.now().minus(staleThresholdMinutes, java.time.temporal.ChronoUnit.MINUTES)
+        val profiles = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser(cutoff)
 
         val filtered = if (!search.isNullOrBlank()) {
             profiles.filter {
@@ -139,6 +139,10 @@ class AdminDriverService(
         profile.displayName = request.fullName
         profile.profilePictureUrl = request.profilePictureUrl ?: profile.profilePictureUrl
         profile.dailyRate = BigDecimal.valueOf(request.dailyRate)
+        if (!request.isActive) {
+            profile.goOffline()
+            driverLocationService.evictPresence(user.id!!)
+        }
         val savedProfile = driverProfileRepository.save(profile)
 
         return savedProfile.toDriverResponse()
