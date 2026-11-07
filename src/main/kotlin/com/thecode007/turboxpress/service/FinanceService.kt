@@ -11,9 +11,11 @@ import com.thecode007.turboxpress.repository.DriverProfileRepository
 import com.thecode007.turboxpress.repository.UserRepository
 import com.thecode007.turboxpress.repository.OrderRepository
 import com.thecode007.turboxpress.repository.RestaurantRepository
+import com.thecode007.turboxpress.repository.AppSettingRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.LocalDate
 
 @Service
@@ -21,7 +23,8 @@ class FinanceService(
     private val orderRepository: OrderRepository,
     private val restaurantRepository: RestaurantRepository,
     private val driverProfileRepository: DriverProfileRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val appSettingRepository: AppSettingRepository
 ) {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -128,14 +131,25 @@ class FinanceService(
             .filter { !it.isSettledDriver && it.status != OrderStatus.CANCELLED && it.status != OrderStatus.REJECTED }
             .sumOf { it.deliveryFee }
 
-        val totalBalanceDue = deliveryFeesOwed + driver.adminDebtBalance.toDouble()
+        val setting = appSettingRepository.findById(1L).orElse(null)
+        val profitPercent = setting?.deliveryProfitPercent ?: 0.0
+        val profitRate = when {
+            profitPercent > 1.0 -> profitPercent / 100.0
+            profitPercent > 0.0 -> profitPercent
+            else -> 0.0
+        }
+        val profitToCollect = BigDecimal.valueOf(deliveryFeesOwed * profitRate).setScale(2, RoundingMode.HALF_UP).toDouble()
+
+        val totalBalanceDue = BigDecimal.valueOf(profitToCollect + driver.adminDebtBalance.toDouble()).setScale(2, RoundingMode.HALF_UP).toDouble()
 
         val recentOrders = orders.take(20).map {
+            val itemProfit = BigDecimal.valueOf(it.deliveryFee * profitRate).setScale(2, RoundingMode.HALF_UP).toDouble()
             DriverOrderFinanceItem(
                 id = it.id,
                 createdAt = it.createdAt,
                 totalAmount = it.totalAmount,
                 deliveryFee = it.deliveryFee,
+                deliveryProfit = itemProfit,
                 status = it.status,
                 isSettledDriver = it.isSettledDriver
             )
@@ -145,6 +159,8 @@ class FinanceService(
             phoneNumber = user.phoneNumber,
             fullName = driver.displayName ?: user.fullName,
             deliveryFeesOwed = deliveryFeesOwed,
+            deliveryProfitPercent = profitPercent,
+            profitToCollect = profitToCollect,
             subFeeOwed = driver.adminDebtBalance.toDouble(), // Repurpose for UI compatibility
             adminDebtBalance = driver.adminDebtBalance.toDouble(),
             collectedCashBalance = driver.collectedCashBalance.toDouble(),

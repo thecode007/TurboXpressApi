@@ -125,4 +125,18 @@ class ProfileController(
             ResponseEntity.internalServerError().body(BaseResponse.error("Failed to update language: ${e.message}"))
         }
     }
+
+    @DeleteMapping("/driver/account")
+    fun deleteDriverAccount(
+        @AuthenticationPrincipal principal: PermissionDecorator
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        val userId = UUID.fromString(principal.getUserId())
+        return try {
+            profileService.deleteDriverAccount(userId)
+            ResponseEntity.ok(BaseResponse.success("Account deleted successfully"))
+        } catch (e: Exception) {
+            logger.error("Failed to delete account for user: $userId", e)
+            ResponseEntity.internalServerError().body(BaseResponse.error("Failed to delete account: ${e.message}"))
+        }
+    }
 }

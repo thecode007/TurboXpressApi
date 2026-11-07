@@ -194,4 +194,28 @@ class ProfileService(
         userRepository.save(user)
         logger.info("Updated language preference to $lang for user $userId")
     }
+
+    @Transactional
+    fun deleteDriverAccount(userId: UUID) {
+        val user = userRepository.findById(userId)
+            .orElseThrow { Exception("User not found") }
+        user.isActive = false
+        userRepository.save(user)
+        logger.info("Deactivated user account $userId to block access.")
+
+        driverProfileRepository.findById(userId).ifPresent { profile ->
+            profile.profilePictureUrl?.let { mediaService.deleteProfilePicture(it) }
+            profile.idDocumentUrl?.let { mediaService.deleteProfilePicture(it) }
+            profile.criminalRecordUrl?.let { mediaService.deleteProfilePicture(it) }
+
+            profile.profilePictureUrl = null
+            profile.idDocumentUrl = null
+            profile.criminalRecordUrl = null
+            profile.verificationStatus = VerificationStatus.REJECTED
+            profile.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.OFFLINE
+
+            driverProfileRepository.save(profile)
+            logger.info("Deleted driver files and reset verification status for driver $userId.")
+        }
+    }
 }

@@ -15,8 +15,11 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255),
     firebase_uid VARCHAR(128) UNIQUE,
     is_active BOOLEAN DEFAULT TRUE,
+    preferred_language VARCHAR(10) NOT NULL DEFAULT 'en',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) NOT NULL DEFAULT 'en';
 
 -- Create roles table
 CREATE TABLE IF NOT EXISTS roles (
@@ -210,6 +213,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255),
     firebase_uid VARCHAR(128) UNIQUE,
     is_active BOOLEAN DEFAULT TRUE,
+    preferred_language VARCHAR(10) NOT NULL DEFAULT 'en',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -458,3 +462,10 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS destination_name VARCHAR(500);
 
 -- Make restaurant_id nullable so ROOM_SERVICE / TAXI orders work without a restaurant
 ALTER TABLE orders ALTER COLUMN restaurant_id DROP NOT NULL;
+
+-- Sync delivery_zones auto-increment sequence with existing data
+SELECT setval(
+    pg_get_serial_sequence('delivery_zones', 'id'),
+    COALESCE((SELECT MAX(id) FROM delivery_zones), 1),
+    (SELECT MAX(id) IS NOT NULL FROM delivery_zones)
+);

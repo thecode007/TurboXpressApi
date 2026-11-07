@@ -72,6 +72,13 @@ interface OrderRepository : JpaRepository<Order, Long> {
         @Param("thirtyDaysAgo") thirtyDaysAgo: java.time.Instant,
         @Param("twentyFourHoursAgo") twentyFourHoursAgo: java.time.Instant
     ): List<Order>
+
+    // ── Analytics (Merchant Dashboard) ───────────────────────────────────────
+    fun findByRestaurantIdAndCreatedAtAfterOrderByCreatedAtAsc(restaurantId: Long, after: java.time.Instant): List<Order>
+    fun findByRestaurantIdAndAcceptedAtIsNotNullAndReadyAtIsNotNullAndCreatedAtAfterOrderByCreatedAtAsc(restaurantId: Long, after: java.time.Instant): List<Order>
+
+    // ── Analytics (Admin Driver Deliveries) ──────────────────────────────────
+    fun findByStatusAndDeliveredAtAfterOrderByDeliveredAtDesc(status: OrderStatus, after: java.time.Instant): List<Order>
 }
 
 

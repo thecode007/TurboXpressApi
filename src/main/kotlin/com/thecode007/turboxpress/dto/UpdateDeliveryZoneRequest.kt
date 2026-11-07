@@ -1,11 +1,16 @@
 package com.thecode007.turboxpress.dto
 
-import jakarta.validation.constraints.Positive
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class UpdateDeliveryZoneRequest(
-    val name: String?,
+    val name: String? = null,
 
-    val wktPolygon: String?,
+    val wktPolygon: String? = null,
 
-    val isActive: Boolean?
+    val isActive: Boolean? = null,
+
+    val centerLat: Double? = null,
+
+    val centerLng: Double? = null
 )

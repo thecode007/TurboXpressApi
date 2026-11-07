@@ -77,15 +77,20 @@ class OrderController(
         return ResponseEntity.ok(BaseResponse.success("Order updated successfully", order))
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     fun getOrderById(@PathVariable id: Long): ResponseEntity<BaseResponse<OrderResponse>> {
         val order = orderService.getOrderById(id)
         return ResponseEntity.ok(BaseResponse.success("Order retrieved successfully", order))
     }
 
     @GetMapping
-    fun getAllOrders(): ResponseEntity<BaseResponse<List<OrderResponse>>> {
-        val orders = orderService.getAllOrders()
+    fun getAllOrders(
+        @RequestParam(required = false) since: String? = null
+    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        val sinceInstant = since?.takeIf { it.isNotBlank() }?.let {
+            try { java.time.Instant.parse(it) } catch (_: Exception) { null }
+        }
+        val orders = orderService.getAllOrders(sinceInstant)
         return ResponseEntity.ok(BaseResponse.success("Orders retrieved successfully", orders))
     }
 

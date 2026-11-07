@@ -51,7 +51,7 @@ class NotificationService(
 
             val message = Message.builder()
                 .setTopic(topic)
-                .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -83,7 +83,7 @@ class NotificationService(
 
             val message = Message.builder()
                 .setTopic(topic)
-                .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -116,7 +116,7 @@ class NotificationService(
 
             val message = Message.builder()
                 .setTopic(topic)
-                .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -148,7 +148,7 @@ class NotificationService(
 
             val message = Message.builder()
                 .setTopic(topic)
-                .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -180,7 +180,7 @@ class NotificationService(
 
             val message = Message.builder()
                 .setTopic(topic)
-                .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -213,7 +213,7 @@ class NotificationService(
 
                 Message.builder()
                     .setTopic(topic)
-                    .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+
                     .setAndroidConfig(androidConfig)
                     .setApnsConfig(apnsConfig)
                     .putData("orderId", orderId.toString())
@@ -244,11 +244,6 @@ class NotificationService(
                 val title = getLocalizedMessage("notification.BROADCAST_ORDER_TAKEN.title", locale)
                 val body = getLocalizedMessage("notification.BROADCAST_ORDER_TAKEN.body", locale, orderId.toString())
                 
-                // Keep data-only if preferred, but for consistency we add notification.
-                // The mobile app can choose to suppress it or we just let it show.
-                // The previous code had a comment: "Data-only so onMessageReceived ALWAYS fires".
-                // Adding notification payload might change behavior on Android when in background.
-                // However, since we are doing proper notifications, let's keep it here.
                 val androidConfig = AndroidConfig.builder()
                     .setPriority(AndroidConfig.Priority.HIGH)
                     .build()
@@ -259,7 +254,7 @@ class NotificationService(
 
                 Message.builder()
                     .setTopic(topic)
-                    .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+
                     .setAndroidConfig(androidConfig)
                     .setApnsConfig(apnsConfig)
                     .putData("orderId", orderId.toString())

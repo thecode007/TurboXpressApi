@@ -30,6 +30,8 @@ data class DriverFinanceSummary(
     val phoneNumber: String,
     val fullName: String,
     val deliveryFeesOwed: Double,
+    val deliveryProfitPercent: Double = 0.0,
+    val profitToCollect: Double = 0.0,
     val subFeeOwed: Double,
     val adminDebtBalance: Double,
     val collectedCashBalance: Double,
@@ -45,6 +47,7 @@ data class DriverOrderFinanceItem(
     val createdAt: Instant,
     val totalAmount: Double,
     val deliveryFee: Double,
+    val deliveryProfit: Double = 0.0,
     val status: OrderStatus,
     val isSettledDriver: Boolean
 )

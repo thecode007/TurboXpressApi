@@ -311,10 +311,16 @@ class OrderService(
     }
 
     @Transactional(readOnly = true)
-    fun getAllOrders(): List<OrderResponse> {
-        val thirtyDaysAgo = java.time.Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS)
-        val twentyFourHoursAgo = java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS)
-        return orderRepository.findOrdersForDesktopScreen(thirtyDaysAgo, twentyFourHoursAgo)
+    fun getAllOrders(deliveredSince: java.time.Instant? = null): List<OrderResponse> {
+        val now = java.time.Instant.now()
+        val thirtyDaysAgo = now.minus(30, java.time.temporal.ChronoUnit.DAYS)
+        val earliestAllowed = now.minus(62, java.time.temporal.ChronoUnit.DAYS)
+        val deliveredCutoff = when {
+            deliveredSince == null -> now.minus(24, java.time.temporal.ChronoUnit.HOURS)
+            deliveredSince.isBefore(earliestAllowed) -> earliestAllowed
+            else -> deliveredSince
+        }
+        return orderRepository.findOrdersForDesktopScreen(thirtyDaysAgo, deliveredCutoff)
             .map { mapToResponse(it) }
     }
 

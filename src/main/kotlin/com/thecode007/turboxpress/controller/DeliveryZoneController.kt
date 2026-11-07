@@ -6,6 +6,7 @@ import com.thecode007.turboxpress.dto.DeliveryZoneResponse
 import com.thecode007.turboxpress.dto.UpdateDeliveryZoneRequest
 import com.thecode007.turboxpress.service.DeliveryZoneService
 import jakarta.validation.Valid
+import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*
 class DeliveryZoneController(
     private val deliveryZoneService: DeliveryZoneService
 ) {
+    private val log = LoggerFactory.getLogger(DeliveryZoneController::class.java)
 
     @GetMapping
     fun getAllDeliveryZones(): ResponseEntity<BaseResponse<List<DeliveryZoneResponse>>> {
@@ -27,6 +29,8 @@ class DeliveryZoneController(
     fun createDeliveryZone(
         @Valid @RequestBody request: CreateDeliveryZoneRequest
     ): ResponseEntity<BaseResponse<DeliveryZoneResponse>> {
+        log.info("Received request to create delivery zone: name='{}', isActive={}, wktPolygon='{}'",
+            request.name, request.isActive, request.wktPolygon)
         val zone = deliveryZoneService.createDeliveryZone(request)
         return ResponseEntity.ok(BaseResponse.success("Delivery zone created successfully", zone))
     }
@@ -36,6 +40,8 @@ class DeliveryZoneController(
         @PathVariable id: Long,
         @RequestBody request: UpdateDeliveryZoneRequest
     ): ResponseEntity<BaseResponse<DeliveryZoneResponse>> {
+        log.info("Received request to update delivery zone id={}: name='{}', isActive={}, wktPolygon='{}'",
+            id, request.name, request.isActive, request.wktPolygon)
         val zone = deliveryZoneService.updateDeliveryZone(id, request)
         return ResponseEntity.ok(BaseResponse.success("Delivery zone updated successfully", zone))
     }
@@ -44,6 +50,7 @@ class DeliveryZoneController(
     fun deleteDeliveryZone(
         @PathVariable id: Long
     ): ResponseEntity<BaseResponse<Nothing>> {
+        log.info("Received request to delete delivery zone id={}", id)
         deliveryZoneService.deleteDeliveryZone(id)
         return ResponseEntity.ok(BaseResponse.success("Delivery zone deleted successfully", null))
     }

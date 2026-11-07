@@ -9,8 +9,17 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/api/admin/drivers")
 class AdminDriverController(
-    private val adminDriverService: AdminDriverService
+    private val adminDriverService: AdminDriverService,
+    private val analyticsService: com.thecode007.turboxpress.service.AnalyticsService
 ) {
+
+    @GetMapping("/analytics/deliveries")
+    fun getDriverDeliveryStats(
+        @RequestParam(defaultValue = "DAILY") period: String
+    ): ResponseEntity<BaseResponse<DriverDeliveriesResponse>> {
+        val stats = analyticsService.getDriverDeliveryStats(period)
+        return ResponseEntity.ok(BaseResponse.success("Driver delivery statistics retrieved successfully", stats))
+    }
 
     @GetMapping
     fun getAllActiveDrivers(
