@@ -95,6 +95,9 @@ class Order(
     @Column(name = "delivered_at")
     var deliveredAt: Instant? = null,
 
+    @Column(name = "pickup_photo_url")
+    var pickupPhotoUrl: String? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now()
 )

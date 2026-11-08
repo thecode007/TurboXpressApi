@@ -41,6 +41,7 @@ data class OrderResponse(
     val readyAt: Instant? = null,
     val pickedUpAt: Instant? = null,
     val deliveredAt: Instant? = null,
+    val pickupPhotoUrl: String? = null,
     // ROOM_SERVICE / TAXI
     val sourceName: String? = null,
     val destinationName: String? = null

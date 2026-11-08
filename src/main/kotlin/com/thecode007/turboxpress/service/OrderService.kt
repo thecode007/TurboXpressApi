@@ -457,12 +457,10 @@ class OrderService(
         val newDriverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
             ?: throw ResourceNotFoundException("Driver profile not found with phone: $driverPhoneNumber")
 
-        // Free up the old driver if there is one
+        // Free up the old driver if there is one and they have no other active orders
         val oldDriver = order.driver
         if (oldDriver != null && oldDriver.id != newDriverProfile.id) {
-            oldDriver.status = DriverStatus.IDLE
-            driverProfileRepository.save(oldDriver)
-            
+            releaseDriverIfNoActiveOrders(oldDriver, order.id)
             notificationService.notifyDriverUnassigned(order.id, oldDriver.user.phoneNumber)
         }
 
@@ -487,6 +485,78 @@ class OrderService(
             driverName = newDriverProfile.user.fullName
         )
         return response
+    }
+
+    @Transactional
+    fun batchAssignDriver(orderIds: List<Long>, driverPhoneNumber: String): List<OrderResponse> {
+        if (orderIds.isEmpty()) {
+            throw IllegalArgumentException("Order IDs list cannot be empty")
+        }
+
+        val user = userRepository.findByPhoneNumber(driverPhoneNumber)
+            .orElseThrow { ResourceNotFoundException("User not found with phone: $driverPhoneNumber") }
+        val newDriverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
+            ?: throw ResourceNotFoundException("Driver profile not found with phone: $driverPhoneNumber")
+
+        val orders = orderRepository.findAllById(orderIds)
+        if (orders.size != orderIds.distinct().size) {
+            val foundIds = orders.mapNotNull { it.id }.toSet()
+            val missingIds = orderIds.filterNot { foundIds.contains(it) }
+            throw ResourceNotFoundException("Orders not found: $missingIds")
+        }
+
+        val terminalOrders = orders.filter {
+            it.status == OrderStatus.DELIVERED || it.status == OrderStatus.CANCELLED || it.status == OrderStatus.REJECTED
+        }
+        if (terminalOrders.isNotEmpty()) {
+            throw IllegalStateException("Cannot assign driver to completed or cancelled orders: ${terminalOrders.map { it.id }}")
+        }
+
+        val distinctOldDrivers = mutableSetOf<DriverProfile>()
+        val updatedOrders = mutableListOf<Order>()
+
+        for (order in orders) {
+            val oldDriver = order.driver
+            if (oldDriver != null && oldDriver.id != newDriverProfile.id) {
+                distinctOldDrivers.add(oldDriver)
+                notificationService.notifyDriverUnassigned(order.id, oldDriver.user.phoneNumber)
+            }
+
+            order.driver = newDriverProfile
+            if (order.deliveryStatus == DeliveryStatus.PENDING || order.deliveryStatus == DeliveryStatus.AT_RESTAURANT) {
+                order.deliveryStatus = DeliveryStatus.ASSIGNED
+            }
+            updatedOrders.add(order)
+        }
+
+        newDriverProfile.status = DriverStatus.ON_DELIVERY
+        driverProfileRepository.save(newDriverProfile)
+
+        val newlyAssignedIds = orders.mapNotNull { it.id }.toSet()
+        for (oldDriver in distinctOldDrivers) {
+            val activeStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.ON_THE_WAY)
+            val remainingActive = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtAsc(oldDriver.userId, activeStatuses)
+                .filterNot { newlyAssignedIds.contains(it.id) }
+            if (remainingActive.isEmpty()) {
+                oldDriver.status = DriverStatus.IDLE
+                driverProfileRepository.save(oldDriver)
+            }
+        }
+
+        val savedOrders = orderRepository.saveAll(updatedOrders)
+
+        for (savedOrder in savedOrders) {
+            savedOrder.restaurant?.owner?.phoneNumber?.let { notificationService.notifyFrontend(savedOrder.id, it) }
+            notificationService.notifyDriver(savedOrder.id, driverPhoneNumber)
+            orderEventBroadcaster.broadcast(
+                type = "DRIVER_ASSIGNED",
+                orderId = savedOrder.id!!,
+                status = savedOrder.status.name,
+                driverName = newDriverProfile.user.fullName
+            )
+        }
+
+        return savedOrders.map { mapToResponse(it) }
     }
 
     @Transactional
@@ -717,16 +787,7 @@ class OrderService(
 
         // Free up driver
         if (status == OrderStatus.DELIVERED || status == OrderStatus.CANCELLED || status == OrderStatus.REJECTED) {
-            order.driver?.let { profile ->
-                profile.status = DriverStatus.IDLE
-                driverProfileRepository.save(profile)
-            }
-            
-            // Driver is now IDLE, they can receive the next broadcast
-            val setting = appSettingRepository.findById(1L).orElse(null)
-            if (setting != null && !setting.isAutoAssignEnabled) {
-                broadcastNextPendingOrder()
-            }
+            releaseDriverIfNoActiveOrders(order.driver, order.id)
         }
 
         val savedOrder = orderRepository.save(order)
@@ -778,31 +839,13 @@ class OrderService(
                 }
                 
                 // Free up driver
-                order.driver?.let { profile ->
-                    profile.status = DriverStatus.IDLE
-                    driverProfileRepository.save(profile)
-                }
-                
-                // Queue next broadcast
-                val setting = appSettingRepository.findById(1L).orElse(null)
-                if (setting != null && !setting.isAutoAssignEnabled) {
-                    broadcastNextPendingOrder()
-                }
+                releaseDriverIfNoActiveOrders(order.driver, order.id)
             }
             DeliveryStatus.CANCELLED -> {
                 order.status = OrderStatus.CANCELLED
                 
                 // Free up driver
-                order.driver?.let { profile ->
-                    profile.status = DriverStatus.IDLE
-                    driverProfileRepository.save(profile)
-                }
-                
-                // Queue next broadcast
-                val setting = appSettingRepository.findById(1L).orElse(null)
-                if (setting != null && !setting.isAutoAssignEnabled) {
-                    broadcastNextPendingOrder()
-                }
+                releaseDriverIfNoActiveOrders(order.driver, order.id)
             }
             else -> {}
         }
@@ -824,18 +867,17 @@ class OrderService(
     // ─────────────────────────────────────────────────────────────────────────
 
     @Transactional
-    fun getActiveDeliveryForDriver(driverId: java.util.UUID): OrderResponse? {
+    fun getActiveDeliveriesForDriver(driverId: java.util.UUID): List<OrderResponse> {
         val targetStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.ON_THE_WAY)
-        val orders = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtDesc(driverId, targetStatuses)
-        val assignedOrder = orders.firstOrNull()?.let { mapToResponse(it) }
+        val orders = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtAsc(driverId, targetStatuses)
 
         val driverProfile = driverProfileRepository.findByUserIdWithUser(driverId).orElse(null)
         if (driverProfile != null && driverProfile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
             driverLocationService.recordHeartbeat(driverId)
         }
 
-        if (assignedOrder != null) {
-            return assignedOrder
+        if (orders.isNotEmpty()) {
+            return orders.map { mapToResponse(it) }
         }
 
         // Fallback: If in manual mode, and driver is ONLINE & IDLE, serve the broadcast queue top item
@@ -846,12 +888,34 @@ class OrderService(
                 val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(broadcastStatuses)
                 val nextOrder = pendingOrders.firstOrNull()
                 if (nextOrder != null) {
-                    return mapToResponse(nextOrder)
+                    return listOf(mapToResponse(nextOrder))
                 }
             }
         }
 
-        return null
+        return emptyList()
+    }
+
+    @Transactional
+    fun getActiveDeliveryForDriver(driverId: java.util.UUID): OrderResponse? {
+        return getActiveDeliveriesForDriver(driverId).firstOrNull()
+    }
+
+    private fun releaseDriverIfNoActiveOrders(driverProfile: DriverProfile?, currentOrderId: Long?) {
+        if (driverProfile == null) return
+        val activeStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.ON_THE_WAY)
+        val remainingActive = orderRepository.findByDriverIdAndStatusInOrderByCreatedAtAsc(driverProfile.userId, activeStatuses)
+            .filter { it.id != currentOrderId }
+        if (remainingActive.isEmpty()) {
+            driverProfile.status = DriverStatus.IDLE
+            driverProfileRepository.save(driverProfile)
+
+            // Driver is now IDLE, they can receive the next broadcast
+            val setting = appSettingRepository.findById(1L).orElse(null)
+            if (setting != null && !setting.isAutoAssignEnabled) {
+                broadcastNextPendingOrder()
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

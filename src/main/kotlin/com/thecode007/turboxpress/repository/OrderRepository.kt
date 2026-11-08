@@ -13,7 +13,9 @@ interface OrderRepository : JpaRepository<Order, Long> {
     fun findByDriverUserPhoneNumberOrderByCreatedAtDesc(phoneNumber: String): List<Order>
     fun findByCreatedAtAfterOrderByCreatedAtDesc(date: java.time.Instant): List<Order>
     fun findByDriverIsNullAndStatusInOrderByCreatedAtAsc(statuses: List<OrderStatus>): List<Order>
+    fun findByDriverIdAndStatusInOrderByCreatedAtAsc(driverId: java.util.UUID, statuses: List<OrderStatus>): List<Order>
     fun findByDriverIdAndStatusInOrderByCreatedAtDesc(driverId: java.util.UUID, statuses: List<OrderStatus>): List<Order>
+    fun countByDriverIdAndStatusIn(driverId: java.util.UUID, statuses: List<OrderStatus>): Long
     fun findByDriverIdOrderByCreatedAtDesc(driverId: java.util.UUID): List<Order>
 
     // ── Driver work page (iterator pattern) ──────────────────────────────────
@@ -72,7 +74,7 @@ interface OrderRepository : JpaRepository<Order, Long> {
     ): Boolean
 
     /**
-     * Returns all non-delivered orders created in the last 30 days,
+     * Returns all non-delivered orders created since [activeSince] (typically last 24h),
      * plus delivered orders whose deliveredAt is within the last 24 hours.
      * This keeps the payload small for the desktop orders screen.
      */
@@ -80,7 +82,7 @@ interface OrderRepository : JpaRepository<Order, Long> {
         SELECT o FROM Order o
         WHERE (
             o.status NOT IN ('DELIVERED', 'CANCELLED', 'REJECTED')
-            AND o.createdAt >= :thirtyDaysAgo
+            AND o.createdAt >= :activeSince
         ) OR (
             o.status = 'DELIVERED'
             AND COALESCE(o.deliveredAt, o.createdAt) >= :twentyFourHoursAgo
@@ -91,8 +93,28 @@ interface OrderRepository : JpaRepository<Order, Long> {
         ORDER BY o.createdAt DESC
     """)
     fun findOrdersForDesktopScreen(
-        @Param("thirtyDaysAgo") thirtyDaysAgo: java.time.Instant,
+        @Param("activeSince") activeSince: java.time.Instant,
         @Param("twentyFourHoursAgo") twentyFourHoursAgo: java.time.Instant
+    ): List<Order>
+
+    /**
+     * Archive query: finds all orders (or filtered by customer/status/dates) with no 24-hour limit.
+     */
+    @Query("""
+        SELECT o FROM Order o
+        WHERE (:customerQuery IS NULL OR LOWER(o.customer.fullName) LIKE LOWER(CONCAT('%', :customerQuery, '%')) OR o.customer.phoneNumber LIKE CONCAT('%', :customerQuery, '%'))
+          AND (:status IS NULL OR o.status = :status)
+          AND (:restaurantId IS NULL OR o.restaurant.id = :restaurantId)
+          AND (:fromInstant IS NULL OR o.createdAt >= :fromInstant)
+          AND (:toInstant IS NULL OR o.createdAt <= :toInstant)
+        ORDER BY o.createdAt DESC
+    """)
+    fun findArchivedOrders(
+        @Param("customerQuery") customerQuery: String?,
+        @Param("status") status: OrderStatus?,
+        @Param("restaurantId") restaurantId: Long?,
+        @Param("fromInstant") fromInstant: java.time.Instant?,
+        @Param("toInstant") toInstant: java.time.Instant?
     ): List<Order>
 
     // ── Analytics (Merchant Dashboard) ───────────────────────────────────────

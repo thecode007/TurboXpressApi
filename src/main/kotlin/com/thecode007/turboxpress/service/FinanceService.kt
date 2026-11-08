@@ -292,7 +292,9 @@ class FinanceService(
                 deliveryFee = it.deliveryFee,
                 deliveryProfit = itemProfit,
                 status = it.status,
-                isSettledDriver = it.isSettledDriver
+                isSettledDriver = it.isSettledDriver,
+                orderType = it.orderType.name,
+                deliveryZoneName = it.customer.deliveryZone?.name
             )
         }
 

@@ -1,6 +1,7 @@
 package com.thecode007.turboxpress.controller
 
 import com.thecode007.turboxpress.dto.BaseResponse
+import com.thecode007.turboxpress.dto.BatchAssignDriverRequest
 import com.thecode007.turboxpress.dto.OrderCreateRequest
 import com.thecode007.turboxpress.dto.OrderResponse
 import com.thecode007.turboxpress.entity.OrderStatus
@@ -29,6 +30,15 @@ class OrderController(
         } else {
             ResponseEntity.ok(BaseResponse.success("No active delivery found", null))
         }
+    }
+
+    @GetMapping("/active-deliveries")
+    fun getActiveDeliveries(
+        @AuthenticationPrincipal principal: PermissionDecorator
+    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        val userId = UUID.fromString(principal.getUserId())
+        val orders = orderService.getActiveDeliveriesForDriver(userId)
+        return ResponseEntity.ok(BaseResponse.success("Active deliveries retrieved successfully", orders))
     }
 
 
@@ -83,28 +93,81 @@ class OrderController(
         return ResponseEntity.ok(BaseResponse.success("Order retrieved successfully", order))
     }
 
-    @GetMapping
-    fun getAllOrders(
-        @RequestParam(required = false) since: String? = null
-    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
-        val sinceInstant = since?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
-            val normalized = raw.replace(' ', '+')
+    private fun parseInstant(raw: String?): java.time.Instant? {
+        return raw?.trim()?.takeIf { it.isNotEmpty() }?.let { value ->
+            val normalized = value.replace(' ', '+')
             runCatching { java.time.Instant.parse(normalized) }
                 .recoverCatching { java.time.OffsetDateTime.parse(normalized).toInstant() }
                 .recoverCatching {
-                    java.time.LocalDateTime.parse(raw)
+                    java.time.LocalDateTime.parse(value)
                         .atZone(java.time.ZoneId.systemDefault())
                         .toInstant()
                 }
                 .recoverCatching {
-                    java.time.LocalDate.parse(raw)
+                    java.time.LocalDate.parse(value)
                         .atStartOfDay(java.time.ZoneId.systemDefault())
                         .toInstant()
                 }
                 .getOrNull()
         }
+    }
+
+    @GetMapping
+    fun getAllOrders(
+        @RequestParam(required = false) since: String? = null,
+        @RequestParam(required = false, defaultValue = "false") archive: Boolean = false,
+        @RequestParam(required = false) query: String? = null,
+        @RequestParam(required = false) status: OrderStatus? = null,
+        @RequestParam(required = false) restaurantId: Long? = null
+    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        if (archive) {
+            val orders = orderService.getArchivedOrders(
+                query = query,
+                status = status,
+                restaurantId = restaurantId
+            )
+            return ResponseEntity.ok(BaseResponse.success("Archived orders retrieved successfully", orders))
+        }
+
+        val sinceInstant = parseInstant(since)
         val orders = orderService.getAllOrders(sinceInstant)
         return ResponseEntity.ok(BaseResponse.success("Orders retrieved successfully", orders))
+    }
+
+    @GetMapping("/archive")
+    fun getArchivedOrders(
+        @RequestParam(required = false) query: String? = null,
+        @RequestParam(required = false) status: OrderStatus? = null,
+        @RequestParam(required = false) restaurantId: Long? = null,
+        @RequestParam(required = false) from: String? = null,
+        @RequestParam(required = false) to: String? = null
+    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        val fromInstant = parseInstant(from)
+        val toInstant = parseInstant(to)
+        val orders = orderService.getArchivedOrders(
+            query = query,
+            status = status,
+            restaurantId = restaurantId,
+            from = fromInstant,
+            to = toInstant
+        )
+        return ResponseEntity.ok(BaseResponse.success("Archived orders retrieved successfully", orders))
+    }
+
+    @PutMapping("/assign-driver/batch")
+    fun batchAssignDriver(
+        @RequestBody request: BatchAssignDriverRequest
+    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        val orders = orderService.batchAssignDriver(request.orderIds, request.driverPhoneNumber)
+        return ResponseEntity.ok(BaseResponse.success("Drivers assigned successfully to ${orders.size} orders", orders))
+    }
+
+    @PostMapping("/assign-driver/batch")
+    fun batchAssignDriverPost(
+        @RequestBody request: BatchAssignDriverRequest
+    ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        val orders = orderService.batchAssignDriver(request.orderIds, request.driverPhoneNumber)
+        return ResponseEntity.ok(BaseResponse.success("Drivers assigned successfully to ${orders.size} orders", orders))
     }
 
     @PutMapping("/{id}/assign-driver")
@@ -158,9 +221,19 @@ class OrderController(
     @PatchMapping("/{id}/delivery-status")
     fun updateDeliveryStatus(
         @PathVariable id: Long,
-        @RequestParam status: com.thecode007.turboxpress.entity.DeliveryStatus
+        @RequestParam status: com.thecode007.turboxpress.entity.DeliveryStatus,
+        @RequestParam(required = false) photoUrl: String? = null
     ): ResponseEntity<BaseResponse<OrderResponse>> {
-        val order = orderService.updateDeliveryStatus(id, status)
+        val order = orderService.updateDeliveryStatus(id, status, photoUrl)
         return ResponseEntity.ok(BaseResponse.success("Delivery status updated successfully", order))
+    }
+
+    @PatchMapping("/{id}/pickup-photo")
+    fun updatePickupPhoto(
+        @PathVariable id: Long,
+        @RequestParam photoUrl: String
+    ): ResponseEntity<BaseResponse<OrderResponse>> {
+        val order = orderService.setPickupPhoto(id, photoUrl)
+        return ResponseEntity.ok(BaseResponse.success("Pickup photo updated successfully", order))
     }
 }

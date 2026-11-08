@@ -69,5 +69,7 @@ data class DriverOrderFinanceItem(
     val deliveryFee: Double,
     val deliveryProfit: Double = 0.0,
     val status: OrderStatus,
-    val isSettledDriver: Boolean
+    val isSettledDriver: Boolean,
+    val orderType: String = "FOOD_DELIVERY",
+    val deliveryZoneName: String? = null
 )

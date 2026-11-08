@@ -452,6 +452,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50) NOT NULL
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS driver_arrived_at_restaurant_at TIMESTAMP;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_description TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_items_cost DOUBLE PRECISION;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_photo_url VARCHAR(1000);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Room Service & Taxi order type support
