@@ -1,10 +1,22 @@
 package com.thecode007.turboxpress.entity
 
 import jakarta.persistence.*
+import org.hibernate.annotations.BatchSize
 import java.time.Instant
 
 @Entity
-@Table(name = "orders")
+@Table(
+    name = "orders",
+    indexes = [
+        Index(name = "idx_orders_created_at", columnList = "created_at"),
+        Index(name = "idx_orders_status", columnList = "status"),
+        Index(name = "idx_orders_delivered_at", columnList = "delivered_at"),
+        Index(name = "idx_orders_customer_id", columnList = "customer_id"),
+        Index(name = "idx_orders_restaurant_id", columnList = "restaurant_id"),
+        Index(name = "idx_orders_driver_id", columnList = "driver_id"),
+        Index(name = "idx_orders_desktop_filter", columnList = "status, created_at, delivered_at")
+    ]
+)
 class Order(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -77,6 +89,7 @@ class Order(
     @Column(name = "custom_items_cost")
     var customItemsCost: Double? = null,
 
+    @BatchSize(size = 100)
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
     var items: MutableList<OrderItem> = mutableListOf(),
 

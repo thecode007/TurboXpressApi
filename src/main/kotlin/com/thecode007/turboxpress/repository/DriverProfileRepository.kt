@@ -45,6 +45,21 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
         cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(45)
     ): List<DriverProfile>
 
+    /** All APPROVED+ONLINE active drivers (idle or occupied) with their user eagerly loaded and fresh heartbeat. */
+    @Query("""
+        SELECT p FROM DriverProfile p
+        JOIN FETCH p.user u
+        WHERE u.isActive = true
+          AND p.verificationStatus = com.thecode007.turboxpress.entity.VerificationStatus.APPROVED
+          AND p.onlineStatus = com.thecode007.turboxpress.entity.OnlineStatus.ONLINE
+          AND p.lastSeenAt IS NOT NULL
+          AND p.lastSeenAt >= :cutoff
+    """)
+    fun findAllApprovedOnlineDriversWithUser(
+        @org.springframework.data.repository.query.Param("cutoff")
+        cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(45)
+    ): List<DriverProfile>
+
     /** Finds the nearest approved, active, online, idle driver using PostGIS <-> nearest-neighbor operator. */
     @Transactional
     @Query(value = """

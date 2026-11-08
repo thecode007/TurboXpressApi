@@ -15,7 +15,13 @@ import java.util.UUID
  * zone centroid instead.
  */
 @Entity
-@Table(name = "customers")
+@Table(
+    name = "customers",
+    indexes = [
+        Index(name = "idx_customers_delivery_zone_id", columnList = "delivery_zone_id"),
+        Index(name = "idx_customers_phone_number", columnList = "phone_number")
+    ]
+)
 class Customer(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -332,6 +332,19 @@ class OrderService(
     }
 
     @Transactional(readOnly = true)
+    fun getArchivedOrders(
+        query: String? = null,
+        status: OrderStatus? = null,
+        restaurantId: Long? = null,
+        from: java.time.Instant? = null,
+        to: java.time.Instant? = null
+    ): List<OrderResponse> {
+        val cleanQuery = query?.trim()?.takeIf { it.isNotEmpty() }
+        return orderRepository.findArchivedOrders(cleanQuery, status, restaurantId, from, to)
+            .map { mapToResponse(it) }
+    }
+
+    @Transactional(readOnly = true)
     fun getDriverOrderHistory(driverId: java.util.UUID): com.thecode007.turboxpress.dto.DriverWorkResponse {
         val orders = orderRepository.findByDriverIdOrderByCreatedAtDesc(driverId)
             .filter { it.status == OrderStatus.DELIVERED || it.deliveryStatus == DeliveryStatus.DELIVERED }
@@ -802,12 +815,33 @@ class OrderService(
         return response
     }
 
+    @Transactional
+    fun setPickupPhoto(orderId: Long, photoUrl: String): OrderResponse {
+        val order = orderRepository.findById(orderId)
+            .orElseThrow { ResourceNotFoundException("Order not found: $orderId") }
+        order.pickupPhotoUrl = photoUrl
+        val savedOrder = orderRepository.save(order)
+        val response = mapToResponse(savedOrder)
+        orderEventBroadcaster.broadcast(
+            type = "ORDER_UPDATED",
+            orderId = savedOrder.id,
+            status = savedOrder.status.name,
+            customerName = savedOrder.customer.fullName,
+            restaurantName = savedOrder.restaurant?.name ?: savedOrder.orderType.name.replace('_', ' ')
+        )
+        return response
+    }
+
     /** Evict cached work pages when delivery status changes (e.g. DELIVERED). */
     @CacheEvict(value = ["driver-work-pages"], allEntries = true)
     @Transactional
-    fun updateDeliveryStatus(orderId: Long, status: DeliveryStatus): OrderResponse {
+    fun updateDeliveryStatus(orderId: Long, status: DeliveryStatus, photoUrl: String? = null): OrderResponse {
         val order = orderRepository.findById(orderId)
             .orElseThrow { ResourceNotFoundException("Order not found: $orderId") }
+
+        if (!photoUrl.isNullOrBlank()) {
+            order.pickupPhotoUrl = photoUrl
+        }
 
         order.deliveryStatus = status
 
@@ -817,6 +851,9 @@ class OrderService(
                 if (order.driverArrivedAtRestaurantAt == null) order.driverArrivedAtRestaurantAt = now
             }
             DeliveryStatus.ON_THE_WAY -> {
+                if (order.pickupPhotoUrl.isNullOrBlank()) {
+                    throw IllegalArgumentException("Pickup photo is required before marking order as picked up")
+                }
                 if (order.acceptedAt == null) order.acceptedAt = order.createdAt
                 if (order.readyAt == null) order.readyAt = order.driverArrivedAtRestaurantAt ?: now
                 if (order.pickedUpAt == null) order.pickedUpAt = now
@@ -975,6 +1012,7 @@ class OrderService(
             readyAt = order.readyAt,
             pickedUpAt = order.pickedUpAt,
             deliveredAt = order.deliveredAt,
+            pickupPhotoUrl = order.pickupPhotoUrl,
             locationMethod = if (customer.deliveryZone != null) "DELIVERY_ZONE" else "WHATSAPP_LINK",
             sourceName = order.sourceName,
             destinationName = order.destinationName

@@ -5,10 +5,12 @@ import com.thecode007.turboxpress.dto.DriverResponse
 import com.thecode007.turboxpress.dto.PageResponse
 import com.thecode007.turboxpress.dto.UpdateDriverRequest
 import com.thecode007.turboxpress.entity.DriverProfile
+import com.thecode007.turboxpress.entity.OrderStatus
 import com.thecode007.turboxpress.entity.User
 import com.thecode007.turboxpress.entity.VerificationStatus
 import com.thecode007.turboxpress.exception.ResourceNotFoundException
 import com.thecode007.turboxpress.repository.DriverProfileRepository
+import com.thecode007.turboxpress.repository.OrderRepository
 import com.thecode007.turboxpress.repository.RoleRepository
 import com.thecode007.turboxpress.repository.UserRepository
 import org.springframework.data.domain.Page
@@ -26,9 +28,19 @@ class AdminDriverService(
     private val roleRepository: RoleRepository,
     private val passwordEncoder: PasswordEncoder,
     private val driverLocationService: DriverLocationService,
+    private val orderRepository: OrderRepository,
     @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-seconds:45}")
     private val staleThresholdSeconds: Long = 45
 ) {
+
+    companion object {
+        private val ACTIVE_ORDER_STATUSES = listOf(
+            OrderStatus.ACCEPTED,
+            OrderStatus.PREPARING,
+            OrderStatus.READY_FOR_PICKUP,
+            OrderStatus.ON_THE_WAY
+        )
+    }
 
     private fun onlineCutoff(): java.time.Instant =
         java.time.Instant.now().minusSeconds(staleThresholdSeconds)
@@ -55,7 +67,20 @@ class AdminDriverService(
         val pageList = filtered.subList(start, end)
         val page = PageImpl(pageList, pageable, filtered.size.toLong())
 
-        val responses = page.content.map { it.toDriverResponse() }
+        val pagedDriverIds = pageList.map { it.userId }
+        val orderCounts = if (pagedDriverIds.isEmpty()) {
+            emptyMap()
+        } else {
+            orderRepository.countActiveOrdersByDriverIds(pagedDriverIds, ACTIVE_ORDER_STATUSES)
+                .mapNotNull { row ->
+                    val driverId = row.getOrNull(0) as? java.util.UUID ?: return@mapNotNull null
+                    val count = (row.getOrNull(1) as? Number)?.toInt() ?: 0
+                    driverId to count
+                }
+                .toMap()
+        }
+
+        val responses = pageList.map { it.toDriverResponse(orderCount = orderCounts[it.userId] ?: 0) }
 
         return PageResponse(
             content = responses,
@@ -69,7 +94,7 @@ class AdminDriverService(
 
     @Transactional(readOnly = true)
     fun getAvailableDrivers(search: String?): List<DriverResponse> {
-        val profiles = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser(onlineCutoff())
+        val profiles = driverProfileRepository.findAllApprovedOnlineDriversWithUser(onlineCutoff())
 
         val filtered = if (!search.isNullOrBlank()) {
             profiles.filter {
@@ -81,7 +106,20 @@ class AdminDriverService(
             profiles
         }
 
-        return filtered.map { it.toDriverResponse() }
+        val driverIds = filtered.map { it.userId }
+        val orderCounts = if (driverIds.isEmpty()) {
+            emptyMap()
+        } else {
+            orderRepository.countActiveOrdersByDriverIds(driverIds, ACTIVE_ORDER_STATUSES)
+                .mapNotNull { row ->
+                    val driverId = row.getOrNull(0) as? java.util.UUID ?: return@mapNotNull null
+                    val count = (row.getOrNull(1) as? Number)?.toInt() ?: 0
+                    driverId to count
+                }
+                .toMap()
+        }
+
+        return filtered.map { it.toDriverResponse(orderCount = orderCounts[it.userId] ?: 0) }
     }
 
     @Transactional(readOnly = true)
@@ -90,7 +128,8 @@ class AdminDriverService(
             .orElseThrow { ResourceNotFoundException("Driver not found with phone: $phoneNumber") }
         val profile = driverProfileRepository.findByUserId(user.id!!)
             .orElseThrow { ResourceNotFoundException("Driver profile not found") }
-        return profile.toDriverResponse()
+        val activeOrderCount = orderRepository.countByDriverIdAndStatusIn(profile.userId, ACTIVE_ORDER_STATUSES).toInt()
+        return profile.toDriverResponse(orderCount = activeOrderCount)
     }
 
     @Transactional
@@ -165,7 +204,7 @@ class AdminDriverService(
         userRepository.save(user)
     }
 
-    private fun DriverProfile.toDriverResponse(): DriverResponse {
+    private fun DriverProfile.toDriverResponse(orderCount: Int = 0): DriverResponse {
         val effectiveStatus = if (this.isEffectivelyOnline(onlineCutoff())) {
             com.thecode007.turboxpress.entity.OnlineStatus.ONLINE.name
         } else {
@@ -184,7 +223,9 @@ class AdminDriverService(
             createdAt = this.createdAt?.toString(),
             adminDebtBalance = this.adminDebtBalance.toDouble(),
             collectedCashBalance = this.collectedCashBalance.toDouble(),
-            dailyRate = this.dailyRate.toDouble()
+            dailyRate = this.dailyRate.toDouble(),
+            orderCount = orderCount,
+            activeOrderCount = orderCount
         )
     }
 }

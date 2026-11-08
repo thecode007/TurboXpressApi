@@ -18,6 +18,18 @@ interface OrderRepository : JpaRepository<Order, Long> {
     fun countByDriverIdAndStatusIn(driverId: java.util.UUID, statuses: List<OrderStatus>): Long
     fun findByDriverIdOrderByCreatedAtDesc(driverId: java.util.UUID): List<Order>
 
+    @Query("""
+        SELECT o.driver.userId, COUNT(o)
+        FROM Order o
+        WHERE o.driver.userId IN :driverIds
+          AND o.status IN :statuses
+        GROUP BY o.driver.userId
+    """)
+    fun countActiveOrdersByDriverIds(
+        @Param("driverIds") driverIds: Collection<java.util.UUID>,
+        @Param("statuses") statuses: Collection<OrderStatus>
+    ): List<Array<Any>>
+
     // ── Driver work page (iterator pattern) ──────────────────────────────────
 
     /**
@@ -76,10 +88,15 @@ interface OrderRepository : JpaRepository<Order, Long> {
     /**
      * Returns all non-delivered orders created since [activeSince] (typically last 24h),
      * plus delivered orders whose deliveredAt is within the last 24 hours.
-     * This keeps the payload small for the desktop orders screen.
+     * Eagerly joins customer, zone, restaurant, and driver to eliminate N+1 queries.
      */
     @Query("""
-        SELECT o FROM Order o
+        SELECT DISTINCT o FROM Order o
+        LEFT JOIN FETCH o.customer c
+        LEFT JOIN FETCH c.deliveryZone
+        LEFT JOIN FETCH o.restaurant
+        LEFT JOIN FETCH o.driver d
+        LEFT JOIN FETCH d.user
         WHERE (
             o.status NOT IN ('DELIVERED', 'CANCELLED', 'REJECTED')
             AND o.createdAt >= :activeSince
@@ -99,12 +116,18 @@ interface OrderRepository : JpaRepository<Order, Long> {
 
     /**
      * Archive query: finds all orders (or filtered by customer/status/dates) with no 24-hour limit.
+     * Eagerly joins customer, zone, restaurant, and driver to eliminate N+1 queries.
      */
     @Query("""
-        SELECT o FROM Order o
-        WHERE (:customerQuery IS NULL OR LOWER(o.customer.fullName) LIKE LOWER(CONCAT('%', :customerQuery, '%')) OR o.customer.phoneNumber LIKE CONCAT('%', :customerQuery, '%'))
+        SELECT DISTINCT o FROM Order o
+        LEFT JOIN FETCH o.customer c
+        LEFT JOIN FETCH c.deliveryZone
+        LEFT JOIN FETCH o.restaurant r
+        LEFT JOIN FETCH o.driver d
+        LEFT JOIN FETCH d.user
+        WHERE (:customerQuery IS NULL OR (c IS NOT NULL AND (LOWER(c.fullName) LIKE LOWER(CONCAT('%', :customerQuery, '%')) OR c.phoneNumber LIKE CONCAT('%', :customerQuery, '%'))))
           AND (:status IS NULL OR o.status = :status)
-          AND (:restaurantId IS NULL OR o.restaurant.id = :restaurantId)
+          AND (:restaurantId IS NULL OR (r IS NOT NULL AND r.id = :restaurantId))
           AND (:fromInstant IS NULL OR o.createdAt >= :fromInstant)
           AND (:toInstant IS NULL OR o.createdAt <= :toInstant)
         ORDER BY o.createdAt DESC

@@ -470,6 +470,18 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS destination_name VARCHAR(500);
 -- Make restaurant_id nullable so ROOM_SERVICE / TAXI orders work without a restaurant
 ALTER TABLE orders ALTER COLUMN restaurant_id DROP NOT NULL;
 
+-- Indexes for high-throughput queries (Orders Screen, Orders Archive, and Batch Loading)
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_delivered_at ON orders(delivered_at);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_driver_id ON orders(driver_id);
+CREATE INDEX IF NOT EXISTS idx_orders_restaurant_id ON orders(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_orders_desktop_filter ON orders(status, created_at, delivered_at);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_menu_item_id ON order_items(menu_item_id);
+CREATE INDEX IF NOT EXISTS idx_customers_delivery_zone_id ON customers(delivery_zone_id);
+
 -- Sync delivery_zones auto-increment sequence with existing data
 SELECT setval(
     pg_get_serial_sequence('delivery_zones', 'id'),

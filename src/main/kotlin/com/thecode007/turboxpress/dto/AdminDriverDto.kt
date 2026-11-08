@@ -16,7 +16,9 @@ data class DriverResponse(
     val createdAt: String?,
     val adminDebtBalance: Double,
     val collectedCashBalance: Double,
-    val dailyRate: Double
+    val dailyRate: Double,
+    val orderCount: Int = 0,
+    val activeOrderCount: Int = 0
 )
 
 data class CreateDriverRequest(
