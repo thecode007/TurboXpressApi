@@ -8,6 +8,8 @@ data class OrderResponse(
     val orderType: String = "FOOD_DELIVERY",
     val restaurantId: Long?,
     val restaurantName: String,
+    val territoryId: Long? = null,
+    val territoryName: String? = null,
     val driverPhoneNumber: String?,
     val driverFullName: String?,
     val driverId: String?,

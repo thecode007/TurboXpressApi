@@ -4,6 +4,7 @@ import com.google.firebase.messaging.AndroidConfig
 import com.google.firebase.messaging.AndroidNotification
 import com.google.firebase.messaging.ApnsConfig
 import com.google.firebase.messaging.Aps
+import com.google.firebase.messaging.ApsAlert
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.Notification
@@ -32,6 +33,37 @@ class NotificationService(
         }
     }
 
+    private fun buildAlertApnsConfig(title: String, body: String): ApnsConfig {
+        return ApnsConfig.builder()
+            .putHeader("apns-push-type", "alert")
+            .putHeader("apns-priority", "10")
+            .setAps(
+                Aps.builder()
+                    .setAlert(
+                        ApsAlert.builder()
+                            .setTitle(title)
+                            .setBody(body)
+                            .build()
+                    )
+                    .setSound("default")
+                    .setContentAvailable(true)
+                    .build()
+            )
+            .build()
+    }
+
+    private fun buildBackgroundApnsConfig(): ApnsConfig {
+        return ApnsConfig.builder()
+            .putHeader("apns-push-type", "background")
+            .putHeader("apns-priority", "5")
+            .setAps(
+                Aps.builder()
+                    .setContentAvailable(true)
+                    .build()
+            )
+            .build()
+    }
+
     fun notifyFrontend(orderId: Long?, ownerPhoneNumber: String?) {
         if (orderId == null || ownerPhoneNumber == null) return
         try {
@@ -44,14 +76,10 @@ class NotificationService(
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
                 .build()
-            val apnsConfig = ApnsConfig.builder()
-                .putHeader("apns-priority", "10")
-                .setAps(Aps.builder().setContentAvailable(true).build())
-                .build()
+            val apnsConfig = buildAlertApnsConfig(title, body)
 
             val message = Message.builder()
                 .setTopic(topic)
-
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -76,14 +104,10 @@ class NotificationService(
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
                 .build()
-            val apnsConfig = ApnsConfig.builder()
-                .putHeader("apns-priority", "10")
-                .setAps(Aps.builder().setContentAvailable(true).build())
-                .build()
+            val apnsConfig = buildAlertApnsConfig(title, body)
 
             val message = Message.builder()
                 .setTopic(topic)
-
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -109,14 +133,10 @@ class NotificationService(
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
                 .build()
-            val apnsConfig = ApnsConfig.builder()
-                .putHeader("apns-priority", "10")
-                .setAps(Aps.builder().setContentAvailable(true).build())
-                .build()
+            val apnsConfig = buildAlertApnsConfig(title, body)
 
             val message = Message.builder()
                 .setTopic(topic)
-
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -141,14 +161,10 @@ class NotificationService(
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
                 .build()
-            val apnsConfig = ApnsConfig.builder()
-                .putHeader("apns-priority", "10")
-                .setAps(Aps.builder().setContentAvailable(true).build())
-                .build()
+            val apnsConfig = buildAlertApnsConfig(title, body)
 
             val message = Message.builder()
                 .setTopic(topic)
-
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -173,14 +189,10 @@ class NotificationService(
             val androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
                 .build()
-            val apnsConfig = ApnsConfig.builder()
-                .putHeader("apns-priority", "10")
-                .setAps(Aps.builder().setContentAvailable(true).build())
-                .build()
+            val apnsConfig = buildAlertApnsConfig(title, body)
 
             val message = Message.builder()
                 .setTopic(topic)
-
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)
                 .putData("orderId", orderId.toString())
@@ -206,14 +218,10 @@ class NotificationService(
                 val androidConfig = AndroidConfig.builder()
                     .setPriority(AndroidConfig.Priority.HIGH)
                     .build()
-                val apnsConfig = ApnsConfig.builder()
-                    .putHeader("apns-priority", "10")
-                    .setAps(Aps.builder().setContentAvailable(true).build())
-                    .build()
+                val apnsConfig = buildAlertApnsConfig(title, body)
 
                 Message.builder()
                     .setTopic(topic)
-
                     .setAndroidConfig(androidConfig)
                     .setApnsConfig(apnsConfig)
                     .putData("orderId", orderId.toString())
@@ -240,21 +248,14 @@ class NotificationService(
             val messages = targets.map { phone ->
                 val sanitizedPhone = phone.replace(Regex("[^a-zA-Z0-9-_.~%]"), "")
                 val topic = "driver_$sanitizedPhone"
-                val locale = getUserLocale(phone)
-                val title = getLocalizedMessage("notification.BROADCAST_ORDER_TAKEN.title", locale)
-                val body = getLocalizedMessage("notification.BROADCAST_ORDER_TAKEN.body", locale, orderId.toString())
-                
+
                 val androidConfig = AndroidConfig.builder()
                     .setPriority(AndroidConfig.Priority.HIGH)
                     .build()
-                val apnsConfig = ApnsConfig.builder()
-                    .putHeader("apns-priority", "10")
-                    .setAps(Aps.builder().setContentAvailable(true).build())
-                    .build()
+                val apnsConfig = buildBackgroundApnsConfig()
 
                 Message.builder()
                     .setTopic(topic)
-
                     .setAndroidConfig(androidConfig)
                     .setApnsConfig(apnsConfig)
                     .putData("orderId", orderId.toString())

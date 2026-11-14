@@ -15,4 +15,6 @@ interface PermissionDecorator : UserDetails {
     fun getFullName(): String
     fun getPhoneNumber(): String
     fun getRoleNames(): Set<String>
+    fun getTerritoryId(): Long? = null
+    fun getTerritoryName(): String? = null
 }

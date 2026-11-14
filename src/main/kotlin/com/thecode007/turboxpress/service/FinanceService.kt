@@ -27,7 +27,8 @@ class FinanceService(
     private val restaurantRepository: RestaurantRepository,
     private val driverProfileRepository: DriverProfileRepository,
     private val userRepository: UserRepository,
-    private val appSettingRepository: AppSettingRepository
+    private val appSettingRepository: AppSettingRepository,
+    @org.springframework.context.annotation.Lazy private val driverOnlineTrackingService: DriverOnlineTrackingService
 ) {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -135,8 +136,11 @@ class FinanceService(
 
     private fun resolvePeriodWindow(period: String?, date: String?, month: String?): PeriodWindow {
         val zoneId = ZoneId.systemDefault()
-        val today = LocalDate.now(zoneId)
-        val currentMonth = YearMonth.now(zoneId)
+        val nowZoned = Instant.now().atZone(zoneId)
+        // Day shift schedule is from 9:00 AM to 2:00 AM next day (not 11:59 PM).
+        // Any time before 9:00 AM belongs to the previous calendar day's shift.
+        val currentBusinessDay = if (nowZoned.hour < 9) nowZoned.toLocalDate().minusDays(1) else nowZoned.toLocalDate()
+        val currentBusinessMonth = YearMonth.from(currentBusinessDay)
 
         val rawPeriod = period?.trim()?.uppercase()
         val effectiveDateInput = month?.trim()?.takeIf { it.isNotEmpty() }
@@ -152,7 +156,7 @@ class FinanceService(
         return when (normalizedPeriod) {
             "MONTHLY" -> {
                 val targetMonth = if (effectiveDateInput.isNullOrBlank()) {
-                    currentMonth
+                    currentBusinessMonth
                 } else {
                     runCatching { YearMonth.parse(effectiveDateInput) }
                         .recoverCatching { YearMonth.from(LocalDate.parse(effectiveDateInput)) }
@@ -162,9 +166,10 @@ class FinanceService(
                 }
                 val startDate = targetMonth.atDay(1)
                 val endDate = targetMonth.atEndOfMonth()
-                val startInstant = startDate.atStartOfDay(zoneId).toInstant()
-                val endInstant = targetMonth.plusMonths(1).atDay(1).atStartOfDay(zoneId).toInstant()
-                val isBeforeCurrent = targetMonth.isBefore(currentMonth)
+                // Month shift starts at 9:00 AM on 1st of month and ends at 2:00 AM on 1st of NEXT month
+                val startInstant = targetMonth.atDay(1).atTime(9, 0).atZone(zoneId).toInstant()
+                val endInstant = targetMonth.plusMonths(1).atDay(1).atTime(2, 0).atZone(zoneId).toInstant()
+                val isBeforeCurrent = targetMonth.isBefore(currentBusinessMonth)
 
                 PeriodWindow(
                     period = "MONTHLY",
@@ -180,16 +185,17 @@ class FinanceService(
             }
             "DAILY" -> {
                 val targetDate = if (effectiveDateInput.isNullOrBlank()) {
-                    today
+                    currentBusinessDay
                 } else {
                     runCatching { LocalDate.parse(effectiveDateInput) }
                         .getOrElse {
                             throw IllegalArgumentException("Invalid date format: '$effectiveDateInput'. Expected YYYY-MM-DD")
                         }
                 }
-                val startInstant = targetDate.atStartOfDay(zoneId).toInstant()
-                val endInstant = targetDate.plusDays(1).atStartOfDay(zoneId).toInstant()
-                val isBeforeCurrent = targetDate.isBefore(today)
+                // Day shift starts at 9:00 AM on targetDate and ends at 2:00 AM on targetDate + 1 day
+                val startInstant = targetDate.atTime(9, 0).atZone(zoneId).toInstant()
+                val endInstant = targetDate.plusDays(1).atTime(2, 0).atZone(zoneId).toInstant()
+                val isBeforeCurrent = targetDate.isBefore(currentBusinessDay)
 
                 PeriodWindow(
                     period = "DAILY",
@@ -298,6 +304,16 @@ class FinanceService(
             )
         }
 
+        val onlineSeconds = if (window.startInstant != null && window.endInstant != null) {
+            driverOnlineTrackingService.calculateOnlineDurationSeconds(driver.userId, window.startInstant, window.endInstant)
+        } else {
+            val allTimeStart = driver.createdAt ?: Instant.EPOCH
+            val allTimeEnd = Instant.now()
+            driverOnlineTrackingService.calculateOnlineDurationSeconds(driver.userId, allTimeStart, allTimeEnd)
+        }
+        val onlineMinutes = onlineSeconds / 60
+        val onlineHoursFormatted = driverOnlineTrackingService.formatDuration(onlineSeconds)
+
         return DriverFinanceSummary(
             phoneNumber = user.phoneNumber,
             fullName = driver.displayName ?: user.fullName,
@@ -330,6 +346,8 @@ class FinanceService(
             accumulatedProfitToCollect = accumulatedProfitToCollect,
             accumulatedTotalBalanceDue = accumulatedTotalBalanceDue,
             nextBillingDate = driver.nextBillingDate ?: LocalDate.now(),
+            onlineMinutes = onlineMinutes,
+            onlineHoursFormatted = onlineHoursFormatted,
             recentOrders = recentOrders
         )
     }

@@ -488,3 +488,46 @@ SELECT setval(
     COALESCE((SELECT MAX(id) FROM delivery_zones), 1),
     (SELECT MAX(id) IS NOT NULL FROM delivery_zones)
 );
+
+-- Driver Online Sessions
+CREATE TABLE IF NOT EXISTS driver_online_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    driver_id VARCHAR(36) NOT NULL,
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_heartbeat_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    ended_at TIMESTAMP WITH TIME ZONE,
+    duration_seconds BIGINT,
+    CONSTRAINT fk_driver_online_sessions_driver FOREIGN KEY (driver_id) REFERENCES driver_profiles(user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_online_sessions_driver ON driver_online_sessions(driver_id);
+CREATE INDEX IF NOT EXISTS idx_driver_online_sessions_started ON driver_online_sessions(started_at);
+CREATE INDEX IF NOT EXISTS idx_driver_online_sessions_ended ON driver_online_sessions(ended_at);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Territories (Operational partitioning for Users, Drivers, and Restaurants)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS territories (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    is_active BOOLEAN DEFAULT TRUE,
+    polygon geometry(Polygon, 4326) NOT NULL
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS territory_id BIGINT REFERENCES territories(id) ON DELETE SET NULL;
+ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS territory_id BIGINT REFERENCES territories(id) ON DELETE SET NULL;
+ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS territory_id BIGINT REFERENCES territories(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_territories_polygon ON territories USING GIST(polygon);
+CREATE INDEX IF NOT EXISTS idx_users_territory_id ON users(territory_id);
+CREATE INDEX IF NOT EXISTS idx_restaurants_territory_id ON restaurants(territory_id);
+CREATE INDEX IF NOT EXISTS idx_driver_profiles_territory_id ON driver_profiles(territory_id);
+
+-- Sync territories auto-increment sequence with existing data
+SELECT setval(
+    pg_get_serial_sequence('territories', 'id'),
+    COALESCE((SELECT MAX(id) FROM territories), 1),
+    (SELECT MAX(id) IS NOT NULL FROM territories)
+);
+
+

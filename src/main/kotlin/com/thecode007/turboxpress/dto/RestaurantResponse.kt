@@ -16,6 +16,8 @@ data class RestaurantResponse(
     val balance: BigDecimal = BigDecimal.ZERO,
     val isActive: Boolean = true,
     val nextBillingDate: java.time.LocalDate? = null,
+    val territoryId: Long? = null,
+    val territoryName: String? = null,
     val categories: List<RestaurantCategoryResponse> = emptyList(),
     val items: List<RestaurantItemResponse> = emptyList()
 ) {
@@ -34,6 +36,8 @@ data class RestaurantResponse(
                 balance = restaurant.balance,
                 isActive = restaurant.isActive,
                 nextBillingDate = restaurant.nextBillingDate,
+                territoryId = restaurant.territory?.id,
+                territoryName = restaurant.territory?.name,
                 categories = restaurant.categories.map { RestaurantCategoryResponse.from(it) },
                 items = restaurant.items.map { RestaurantItemResponse.from(it) }
             )

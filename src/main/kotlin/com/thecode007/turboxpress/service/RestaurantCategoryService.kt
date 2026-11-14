@@ -16,7 +16,7 @@ class RestaurantCategoryService(
 
     @Transactional
     fun createCategoryForOwner(ownerPhoneNumber: String, request: CreateCategoryRequest): RestaurantCategoryResponse {
-        val restaurant = restaurantRepository.findFirstByOwnerPhoneNumber(ownerPhoneNumber)
+        val restaurant = restaurantRepository.findFirstByOwnerPhoneNumberIn(RestaurantService.getCandidatePhoneNumbers(ownerPhoneNumber))
             .orElseThrow { IllegalArgumentException("Restaurant not found for owner: $ownerPhoneNumber") }
 
         val name = request.name.trim()

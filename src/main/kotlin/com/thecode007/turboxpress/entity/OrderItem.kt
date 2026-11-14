@@ -1,7 +1,6 @@
 package com.thecode007.turboxpress.entity
 
 import jakarta.persistence.*
-import org.hibernate.annotations.BatchSize
 
 @Entity
 @Table(
@@ -20,7 +19,6 @@ class OrderItem(
     @JoinColumn(name = "order_id", nullable = false)
     var order: Order,
 
-    @BatchSize(size = 100)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "menu_item_id", nullable = false)
     var menuItem: RestaurantItem,

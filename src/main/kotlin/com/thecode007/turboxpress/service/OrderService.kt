@@ -318,7 +318,13 @@ class OrderService(
     }
 
     @Transactional(readOnly = true)
-    fun getAllOrders(deliveredSince: java.time.Instant? = null): List<OrderResponse> {
+    fun getOrdersForRestaurant(restaurantId: Long): List<OrderResponse> {
+        val orders = orderRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId)
+        return orders.map { mapToResponse(it, includeItems = true, includePolygon = false) }
+    }
+
+    @Transactional(readOnly = true)
+    fun getAllOrders(deliveredSince: java.time.Instant? = null, territoryId: Long? = null): List<OrderResponse> {
         val now = java.time.Instant.now()
         val thirtyDaysAgo = now.minus(30, java.time.temporal.ChronoUnit.DAYS)
         val earliestAllowed = now.minus(62, java.time.temporal.ChronoUnit.DAYS)
@@ -327,8 +333,18 @@ class OrderService(
             deliveredSince.isBefore(earliestAllowed) -> earliestAllowed
             else -> deliveredSince
         }
-        return orderRepository.findOrdersForDesktopScreen(thirtyDaysAgo, deliveredCutoff)
-            .map { mapToResponse(it) }
+        val orders = orderRepository.findOrdersForDesktopScreen(thirtyDaysAgo, deliveredCutoff)
+        val filteredOrders = if (territoryId != null) {
+            orders.filter { order ->
+                val orderTerritoryId = order.restaurant?.territory?.id
+                    ?: order.driver?.territory?.id
+                    ?: order.driver?.user?.territory?.id
+                orderTerritoryId == territoryId
+            }
+        } else {
+            orders
+        }
+        return filteredOrders.map { mapToResponse(it, includeItems = true, includePolygon = false) }
     }
 
     @Transactional(readOnly = true)
@@ -337,11 +353,59 @@ class OrderService(
         status: OrderStatus? = null,
         restaurantId: Long? = null,
         from: java.time.Instant? = null,
-        to: java.time.Instant? = null
+        to: java.time.Instant? = null,
+        territoryId: Long? = null
     ): List<OrderResponse> {
         val cleanQuery = query?.trim()?.takeIf { it.isNotEmpty() }
-        return orderRepository.findArchivedOrders(cleanQuery, status, restaurantId, from, to)
-            .map { mapToResponse(it) }
+        val customerPattern = cleanQuery?.let { "%${it.lowercase()}%" }
+
+        val jpql = StringBuilder("""
+            SELECT o FROM Order o
+            LEFT JOIN FETCH o.customer c
+            LEFT JOIN FETCH c.deliveryZone
+            LEFT JOIN FETCH o.restaurant r
+            LEFT JOIN FETCH o.driver d
+            LEFT JOIN FETCH d.user
+        """.trimIndent())
+
+        val conditions = mutableListOf<String>()
+        val params = mutableMapOf<String, Any>()
+
+        if (customerPattern != null) {
+            conditions.add("(c IS NOT NULL AND (LOWER(c.fullName) LIKE :customerPattern OR c.phoneNumber LIKE :customerPattern))")
+            params["customerPattern"] = customerPattern
+        }
+        if (status != null) {
+            conditions.add("o.status = :status")
+            params["status"] = status
+        }
+        if (restaurantId != null) {
+            conditions.add("(r IS NOT NULL AND r.id = :restaurantId)")
+            params["restaurantId"] = restaurantId
+        }
+        if (from != null) {
+            conditions.add("o.createdAt >= :fromInstant")
+            params["fromInstant"] = from
+        }
+        if (to != null) {
+            conditions.add("o.createdAt <= :toInstant")
+            params["toInstant"] = to
+        }
+        if (territoryId != null) {
+            conditions.add("((r IS NOT NULL AND r.territory.id = :territoryId) OR (r IS NULL AND d IS NOT NULL AND (d.territory.id = :territoryId OR d.user.territory.id = :territoryId)))")
+            params["territoryId"] = territoryId
+        }
+
+        if (conditions.isNotEmpty()) {
+            jpql.append(" WHERE ").append(conditions.joinToString(" AND "))
+        }
+        jpql.append(" ORDER BY o.createdAt DESC")
+
+        val queryObj = entityManager.createQuery(jpql.toString(), Order::class.java)
+        params.forEach { (key, value) -> queryObj.setParameter(key, value) }
+
+        return queryObj.resultList
+            .map { mapToResponse(it, includeItems = false, includePolygon = false) }
     }
 
     @Transactional(readOnly = true)
@@ -353,8 +417,8 @@ class OrderService(
         var totalOrders = 0
         var totalDeliveryFees = 0.0
         
-        // Group orders by day, with a -2 hours offset so the day ends at 2 AM
-        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(java.time.ZoneOffset.UTC)
+        // Group orders by shift day (schedule runs 9:00 AM to 2:00 AM next day)
+        val zoneId = java.time.ZoneId.systemDefault()
         val groupedMap = mutableMapOf<String, MutableList<com.thecode007.turboxpress.dto.OrderResponse>>()
         
         for (order in orders) {
@@ -362,8 +426,9 @@ class OrderService(
             totalDeliveryFees += order.deliveryFee
             
             val baseInstant = order.deliveredAt ?: order.createdAt
-            val adjustedInstant = baseInstant.minus(2, java.time.temporal.ChronoUnit.HOURS)
-            val dateStr = formatter.format(adjustedInstant)
+            val z = baseInstant.atZone(zoneId)
+            val businessDate = if (z.hour < 9) z.toLocalDate().minusDays(1) else z.toLocalDate()
+            val dateStr = businessDate.toString()
             
             groupedMap.computeIfAbsent(dateStr) { mutableListOf() }.add(order)
         }
@@ -395,34 +460,31 @@ class OrderService(
      * The cache entry is evicted automatically whenever an order for this driver
      * transitions to DELIVERED (via [updateOrderStatus] or [updateDeliveryStatus]).
      *
-     * The business day boundary is shifted -2 h (matching [getDriverOrderHistory]),
-     * so a shift ending at 02:00 UTC still appears on the previous calendar date.
+     * The business day boundary runs from 9:00 AM to 2:00 AM next day (matching [getDriverOrderHistory]),
+     * so a shift ending at 02:00 still appears on the shift date.
      *
      * @param driverId  the requesting driver's UUID
-     * @param dateStr   "YYYY-MM-DD" in UTC-adjusted time; null → today
+     * @param dateStr   "YYYY-MM-DD"; null → current shift day
      */
     @Cacheable(
         value = ["driver-work-pages"],
-        key = "#driverId.toString() + ':' + ((#dateStr != null && !#dateStr.isBlank()) ? #dateStr : T(java.time.Instant).now().minus(2, T(java.time.temporal.ChronoUnit).HOURS).atZone(T(java.time.ZoneOffset).UTC).toLocalDate().toString())"
+        key = "#driverId.toString() + ':' + ((#dateStr != null && !#dateStr.isBlank()) ? #dateStr : (T(java.time.Instant).now().atZone(T(java.time.ZoneId).systemDefault()).getHour() < 9 ? T(java.time.Instant).now().atZone(T(java.time.ZoneId).systemDefault()).toLocalDate().minusDays(1).toString() : T(java.time.Instant).now().atZone(T(java.time.ZoneId).systemDefault()).toLocalDate().toString()))"
     )
     @Transactional(readOnly = true)
     fun getDriverWorkPage(driverId: java.util.UUID, dateStr: String?): DailyWorkPage {
-        // Resolve the target date — default to today in UTC shifted by -2h (matching windowStart)
+        val zoneId = java.time.ZoneId.systemDefault()
+        val nowZoned = java.time.Instant.now().atZone(zoneId)
+        val currentBusinessDay = if (nowZoned.hour < 9) nowZoned.toLocalDate().minusDays(1) else nowZoned.toLocalDate()
+
         val targetDate: java.time.LocalDate = if (dateStr.isNullOrBlank()) {
-            java.time.Instant.now()
-                .minus(2, java.time.temporal.ChronoUnit.HOURS)
-                .atZone(java.time.ZoneOffset.UTC)
-                .toLocalDate()
+            currentBusinessDay
         } else {
             java.time.LocalDate.parse(dateStr, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
         }
 
-        // Shift the day window -2 h so a late shift ending at 02:00 UTC sits on the
-        // previous calendar day (matches the existing grouping logic in getDriverOrderHistory)
-        val windowStart: java.time.Instant = targetDate.atStartOfDay(java.time.ZoneOffset.UTC)
-            .plusHours(2).toInstant()
-        val windowEnd: java.time.Instant = targetDate.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC)
-            .plusHours(2).toInstant()
+        // Shift window: 9:00 AM on targetDate to 2:00 AM on targetDate + 1
+        val windowStart: java.time.Instant = targetDate.atTime(9, 0).atZone(zoneId).toInstant()
+        val windowEnd: java.time.Instant = targetDate.plusDays(1).atTime(2, 0).atZone(zoneId).toInstant()
 
         // Fetch only the requested day — O(orders_that_day), not O(entire history)
         val orders = orderRepository
@@ -469,6 +531,8 @@ class OrderService(
             .orElseThrow { ResourceNotFoundException("User not found with phone: $driverPhoneNumber") }
         val newDriverProfile = user.id?.let { driverProfileRepository.findById(it).orElse(null) }
             ?: throw ResourceNotFoundException("Driver profile not found with phone: $driverPhoneNumber")
+
+        validateDriverTerritoryForOrder(newDriverProfile, order)
 
         // Free up the old driver if there is one and they have no other active orders
         val oldDriver = order.driver
@@ -529,6 +593,7 @@ class OrderService(
         val updatedOrders = mutableListOf<Order>()
 
         for (order in orders) {
+            validateDriverTerritoryForOrder(newDriverProfile, order)
             val oldDriver = order.driver
             if (oldDriver != null && oldDriver.id != newDriverProfile.id) {
                 distinctOldDrivers.add(oldDriver)
@@ -579,8 +644,16 @@ class OrderService(
 
         val restaurantLocation = order.restaurant?.location
             ?: throw ResourceNotFoundException("Cannot auto-assign: order has no restaurant location")
-        val nearestProfile = driverProfileRepository.findNearestIdleDriver(restaurantLocation, onlineCutoff())
-            ?: throw ResourceNotFoundException("No idle drivers available near the restaurant")
+        val restaurantTerritoryId = order.restaurant?.territory?.id
+        val nearestProfile = if (restaurantTerritoryId != null) {
+            driverProfileRepository.findNearestIdleDriverInTerritory(
+                restaurantLocation = restaurantLocation,
+                territoryId = restaurantTerritoryId,
+                cutoff = onlineCutoff()
+            )
+        } else {
+            driverProfileRepository.findNearestIdleDriver(restaurantLocation, onlineCutoff())
+        } ?: throw ResourceNotFoundException("No idle drivers available near the restaurant in the matching territory")
 
         order.driver = nearestProfile
         order.deliveryStatus = DeliveryStatus.ASSIGNED
@@ -664,6 +737,7 @@ class OrderService(
         println(">>> [broadcastNextPendingOrder] Next order: #${nextOrder.id} (status=${nextOrder.status})")
 
         val idleDrivers = driverProfileRepository.findAllApprovedOnlineIdleDriversWithUser(onlineCutoff())
+            .filter { canDriverServeOrder(it, nextOrder) }
         val phones = idleDrivers.mapNotNull { it.user.phoneNumber }
         log.info("[broadcastNextPendingOrder] Found ${phones.size} ONLINE+IDLE driver(s): $phones")
         println(">>> [broadcastNextPendingOrder] Found ${phones.size} ONLINE+IDLE driver(s): $phones")
@@ -693,6 +767,10 @@ class OrderService(
 
         if (!newDriverProfile.isOnlineAndAvailable(onlineCutoff())) {
             throw IllegalStateException("Driver is not online and available to accept orders")
+        }
+
+        if (!canDriverServeOrder(newDriverProfile, order)) {
+            throw IllegalStateException("Driver territory does not match restaurant territory")
         }
 
         order.driver = newDriverProfile
@@ -923,7 +1001,7 @@ class OrderService(
             if (driverProfile != null && driverProfile.isOnlineAndAvailable(onlineCutoff())) {
                 val broadcastStatuses = listOf(OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP)
                 val pendingOrders = orderRepository.findByDriverIsNullAndStatusInOrderByCreatedAtAsc(broadcastStatuses)
-                val nextOrder = pendingOrders.firstOrNull()
+                val nextOrder = pendingOrders.firstOrNull { canDriverServeOrder(driverProfile, it) }
                 if (nextOrder != null) {
                     return listOf(mapToResponse(nextOrder))
                 }
@@ -959,21 +1037,49 @@ class OrderService(
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun mapToResponse(order: Order): OrderResponse {
+    private fun canDriverServeOrder(driverProfile: DriverProfile, order: Order): Boolean {
+        val restaurantTerritoryId = order.restaurant?.territory?.id ?: return true
+        val driverTerritoryId = driverProfile.territory?.id ?: driverProfile.user.territory?.id
+        return driverTerritoryId == restaurantTerritoryId
+    }
+
+    private fun validateDriverTerritoryForOrder(driverProfile: DriverProfile, order: Order) {
+        val restaurantTerritory = order.restaurant?.territory ?: return
+        val driverTerritory = driverProfile.territory ?: driverProfile.user.territory
+        if (driverTerritory != null && driverTerritory.id != restaurantTerritory.id) {
+            throw IllegalArgumentException(
+                "Driver '${driverProfile.displayName ?: driverProfile.user.fullName}' belongs to territory '${driverTerritory.name}' and cannot serve restaurant '${order.restaurant?.name}' in territory '${restaurantTerritory.name}'"
+            )
+        }
+    }
+
+    private fun mapToResponse(
+        order: Order,
+        includeItems: Boolean = true,
+        includePolygon: Boolean = false
+    ): OrderResponse {
         val customer = order.customer
         // Effective coordinates: exact pin takes priority over zone centroid
         val effectiveLat = customer.latitude ?: customer.deliveryZone?.polygon?.centroid?.y
         val effectiveLng = customer.longitude ?: customer.deliveryZone?.polygon?.centroid?.x
 
-        val zonePolygon = customer.deliveryZone?.polygon?.coordinates?.map {
-            RoutePointDto(lat = it.y, lng = it.x)
-        }
+        val zonePolygon = if (includePolygon) {
+            customer.deliveryZone?.polygon?.coordinates?.map {
+                RoutePointDto(lat = it.y, lng = it.x)
+            }
+        } else null
+
+        val resolvedTerritory = order.restaurant?.territory
+            ?: order.driver?.territory
+            ?: order.driver?.user?.territory
 
         return OrderResponse(
             id = order.id,
             orderType = order.orderType.name,
             restaurantId = order.restaurant?.id,
             restaurantName = order.restaurant?.name ?: order.orderType.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+            territoryId = resolvedTerritory?.id,
+            territoryName = resolvedTerritory?.name,
             driverPhoneNumber = order.driver?.user?.phoneNumber,
             driverFullName = order.driver?.displayName ?: order.driver?.user?.fullName,
             driverId = order.driver?.userId?.toString(),
@@ -981,7 +1087,7 @@ class OrderService(
             deliveryStatus = order.deliveryStatus,
             driverArrivedAtRestaurantAt = order.driverArrivedAtRestaurantAt,
             totalAmount = order.totalAmount,
-            items = order.items.map {
+            items = if (includeItems) order.items.map {
                 OrderItemResponse(
                     id = it.id,
                     menuItemId = it.menuItem.id,
@@ -989,7 +1095,7 @@ class OrderService(
                     quantity = it.quantity,
                     priceAtOrder = it.priceAtOrder
                 )
-            },
+            } else emptyList(),
             customDescription = order.customDescription,
             customItemsCost = order.customItemsCost,
             customerId = customer.id,

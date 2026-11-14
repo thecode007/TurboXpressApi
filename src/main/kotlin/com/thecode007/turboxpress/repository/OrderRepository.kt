@@ -10,7 +10,15 @@ import org.springframework.stereotype.Repository
 @Repository
 interface OrderRepository : JpaRepository<Order, Long> {
     fun findByRestaurantIdOrderByCreatedAtDesc(restaurantId: Long): List<Order>
-    fun findByDriverUserPhoneNumberOrderByCreatedAtDesc(phoneNumber: String): List<Order>
+
+    @Query("""
+        SELECT o FROM Order o
+        LEFT JOIN FETCH o.customer c
+        LEFT JOIN FETCH c.deliveryZone
+        WHERE o.driver.user.phoneNumber = :phoneNumber
+        ORDER BY o.createdAt DESC
+    """)
+    fun findByDriverUserPhoneNumberOrderByCreatedAtDesc(@Param("phoneNumber") phoneNumber: String): List<Order>
     fun findByCreatedAtAfterOrderByCreatedAtDesc(date: java.time.Instant): List<Order>
     fun findByDriverIsNullAndStatusInOrderByCreatedAtAsc(statuses: List<OrderStatus>): List<Order>
     fun findByDriverIdAndStatusInOrderByCreatedAtAsc(driverId: java.util.UUID, statuses: List<OrderStatus>): List<Order>
@@ -91,7 +99,7 @@ interface OrderRepository : JpaRepository<Order, Long> {
      * Eagerly joins customer, zone, restaurant, and driver to eliminate N+1 queries.
      */
     @Query("""
-        SELECT DISTINCT o FROM Order o
+        SELECT o FROM Order o
         LEFT JOIN FETCH o.customer c
         LEFT JOIN FETCH c.deliveryZone
         LEFT JOIN FETCH o.restaurant
@@ -101,7 +109,7 @@ interface OrderRepository : JpaRepository<Order, Long> {
             o.status NOT IN ('DELIVERED', 'CANCELLED', 'REJECTED')
             AND o.createdAt >= :activeSince
         ) OR (
-            o.status = 'DELIVERED'
+            (o.status = 'DELIVERED' OR o.deliveryStatus = 'DELIVERED')
             AND COALESCE(o.deliveredAt, o.createdAt) >= :twentyFourHoursAgo
         ) OR (
             o.status IN ('CANCELLED', 'REJECTED')
@@ -112,32 +120,6 @@ interface OrderRepository : JpaRepository<Order, Long> {
     fun findOrdersForDesktopScreen(
         @Param("activeSince") activeSince: java.time.Instant,
         @Param("twentyFourHoursAgo") twentyFourHoursAgo: java.time.Instant
-    ): List<Order>
-
-    /**
-     * Archive query: finds all orders (or filtered by customer/status/dates) with no 24-hour limit.
-     * Eagerly joins customer, zone, restaurant, and driver to eliminate N+1 queries.
-     */
-    @Query("""
-        SELECT DISTINCT o FROM Order o
-        LEFT JOIN FETCH o.customer c
-        LEFT JOIN FETCH c.deliveryZone
-        LEFT JOIN FETCH o.restaurant r
-        LEFT JOIN FETCH o.driver d
-        LEFT JOIN FETCH d.user
-        WHERE (:customerQuery IS NULL OR (c IS NOT NULL AND (LOWER(c.fullName) LIKE LOWER(CONCAT('%', :customerQuery, '%')) OR c.phoneNumber LIKE CONCAT('%', :customerQuery, '%'))))
-          AND (:status IS NULL OR o.status = :status)
-          AND (:restaurantId IS NULL OR (r IS NOT NULL AND r.id = :restaurantId))
-          AND (:fromInstant IS NULL OR o.createdAt >= :fromInstant)
-          AND (:toInstant IS NULL OR o.createdAt <= :toInstant)
-        ORDER BY o.createdAt DESC
-    """)
-    fun findArchivedOrders(
-        @Param("customerQuery") customerQuery: String?,
-        @Param("status") status: OrderStatus?,
-        @Param("restaurantId") restaurantId: Long?,
-        @Param("fromInstant") fromInstant: java.time.Instant?,
-        @Param("toInstant") toInstant: java.time.Instant?
     ): List<Order>
 
     // ── Analytics (Merchant Dashboard) ───────────────────────────────────────

@@ -15,8 +15,20 @@ class RestaurantController(
 ) {
 
     @GetMapping
-    fun getAllRestaurants(): ResponseEntity<BaseResponse<List<RestaurantResponse>>> {
-        val restaurants = restaurantService.getAllRestaurants()
+    fun getAllRestaurants(
+        @org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator?
+    ): ResponseEntity<BaseResponse<List<RestaurantResponse>>> {
+        val allRestaurants = restaurantService.getAllRestaurants()
+        val adminTerritoryId = if (principal != null && principal.getRoleNames().any { it in setOf("ADMIN", "SUPPORT", "MANAGER") }) {
+            principal.getTerritoryId()
+        } else {
+            null
+        }
+        val restaurants = if (adminTerritoryId != null) {
+            allRestaurants.filter { it.territoryId == adminTerritoryId }
+        } else {
+            allRestaurants
+        }
         return ResponseEntity.ok(BaseResponse.success("Restaurants retrieved successfully", restaurants))
     }
 

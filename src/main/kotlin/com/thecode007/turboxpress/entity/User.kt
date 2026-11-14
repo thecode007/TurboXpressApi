@@ -54,5 +54,9 @@ data class User(
         joinColumns = [JoinColumn(name = "user_id")],
         inverseJoinColumns = [JoinColumn(name = "role_id")]
     )
-    var roles: MutableSet<Role> = mutableSetOf()
+    var roles: MutableSet<Role> = mutableSetOf(),
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "territory_id")
+    var territory: Territory? = null
 )

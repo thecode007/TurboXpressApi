@@ -16,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class RestaurantService(
     private val restaurantRepository: RestaurantRepository,
-    private val ownerRepository: OwnerRepository
+    private val ownerRepository: OwnerRepository,
+    private val territoryRepository: com.thecode007.turboxpress.repository.TerritoryRepository
 ) {
     private val geometryFactory = GeometryFactory(org.locationtech.jts.geom.PrecisionModel(), 4326)
 
@@ -33,9 +34,39 @@ class RestaurantService(
         return RestaurantResponse.from(restaurant)
     }
 
+    companion object {
+        fun getCandidatePhoneNumbers(phoneNumber: String): List<String> {
+            val clean = phoneNumber.trim().replace(" ", "").replace("-", "")
+            val candidates = mutableSetOf(clean)
+            if (clean.startsWith("+20")) {
+                candidates.add("0" + clean.removePrefix("+20"))
+                candidates.add(clean.removePrefix("+20"))
+                candidates.add(clean.removePrefix("+"))
+            } else if (clean.startsWith("20")) {
+                candidates.add("0" + clean.removePrefix("20"))
+                candidates.add(clean.removePrefix("20"))
+                candidates.add("+$clean")
+            } else if (clean.startsWith("0")) {
+                candidates.add("+20" + clean.removePrefix("0"))
+                candidates.add("20" + clean.removePrefix("0"))
+                candidates.add(clean.removePrefix("0"))
+            } else {
+                candidates.add("+20$clean")
+                candidates.add("0$clean")
+                candidates.add("20$clean")
+            }
+            return candidates.toList()
+        }
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    fun findRestaurantByOwnerPhone(phoneNumber: String): java.util.Optional<Restaurant> {
+        return restaurantRepository.findFirstByOwnerPhoneNumberIn(getCandidatePhoneNumbers(phoneNumber))
+    }
+
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getRestaurantByOwner(phoneNumber: String): RestaurantResponse {
-        val restaurant = restaurantRepository.findFirstByOwnerPhoneNumber(phoneNumber)
+        val restaurant = findRestaurantByOwnerPhone(phoneNumber)
             .orElseThrow { IllegalArgumentException("Restaurant not found for owner: $phoneNumber") }
         return RestaurantResponse.from(restaurant)
     }
@@ -51,12 +82,14 @@ class RestaurantService(
             .orElseThrow { IllegalArgumentException("Owner not found with phone number: ${request.ownerPhoneNumber}") }
 
         val location = geometryFactory.createPoint(Coordinate(request.longitude, request.latitude))
+        val territory = territoryRepository.findActiveTerritoriesContainingPoint(location).firstOrNull()
         
         val restaurant = Restaurant(
             name = request.name,
             logoUrl = request.logoUrl,
             location = location,
             owner = owner,
+            territory = territory,
             monthlySubFee = request.monthlySubFee,
             commissionRate = request.commissionRate
         )
@@ -78,7 +111,11 @@ class RestaurantService(
         request.logoUrl?.let { restaurant.logoUrl = it }
         
         if (request.latitude != null && request.longitude != null) {
-            restaurant.location = geometryFactory.createPoint(Coordinate(request.longitude, request.latitude))
+            val newLocation = geometryFactory.createPoint(Coordinate(request.longitude, request.latitude))
+            restaurant.location = newLocation
+            restaurant.territory = territoryRepository.findActiveTerritoriesContainingPoint(newLocation).firstOrNull()
+        } else if (restaurant.territory == null) {
+            restaurant.territory = territoryRepository.findActiveTerritoriesContainingPoint(restaurant.location).firstOrNull()
         }
 
         request.ownerPhoneNumber?.let {

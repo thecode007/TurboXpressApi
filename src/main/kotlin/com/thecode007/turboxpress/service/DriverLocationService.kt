@@ -23,6 +23,7 @@ class DriverLocationService(
     private val driverProfileRepository: DriverProfileRepository,
     private val restaurantRepository: RestaurantRepository,
     private val cacheManager: CacheManager,
+    @org.springframework.context.annotation.Lazy private val driverOnlineTrackingService: DriverOnlineTrackingService,
     @Value("\${driver.location.db-sync-interval-seconds:15}")
     private val dbSyncIntervalSeconds: Long = 15,
     @Value("\${driver.location.min-distance-meters:25.0}")
@@ -80,6 +81,9 @@ class DriverLocationService(
         driverProfile.currentLocation = point
         driverProfile.recordHeartbeat(now)
         driverProfileRepository.save(driverProfile)
+        if (driverProfile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
+            driverOnlineTrackingService.onDriverHeartbeat(request.driverId, now)
+        }
 
         cache?.put(
             request.driverId,
@@ -107,6 +111,10 @@ class DriverLocationService(
 
         if (shouldSyncDb) {
             driverProfileRepository.touchLastSeenAt(driverId, now)
+            val profile = driverProfileRepository.findById(driverId).orElse(null)
+            if (profile != null && profile.onlineStatus == com.thecode007.turboxpress.entity.OnlineStatus.ONLINE) {
+                driverOnlineTrackingService.onDriverHeartbeat(driverId, now)
+            }
             cache?.put(
                 driverId,
                 DriverPresenceEntry(

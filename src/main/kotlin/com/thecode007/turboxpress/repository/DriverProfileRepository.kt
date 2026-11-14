@@ -82,6 +82,30 @@ interface DriverProfileRepository : JpaRepository<DriverProfile, UUID> {
         cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(45)
     ): DriverProfile?
 
+    /** Finds the nearest approved, active, online, idle driver in the specified territory using PostGIS <-> operator. */
+    @Transactional
+    @Query(value = """
+        SELECT d.* FROM driver_profiles d
+        INNER JOIN users u ON u.id = d.user_id
+        WHERE u.is_active = true
+          AND d.verification_status = 'APPROVED'
+          AND d.online_status = 'ONLINE'
+          AND d.status = 'IDLE'
+          AND d.current_location IS NOT NULL
+          AND d.last_seen_at IS NOT NULL
+          AND d.last_seen_at >= :cutoff
+          AND COALESCE(d.territory_id, u.territory_id) = :territoryId
+        ORDER BY d.current_location <-> :restaurantLocation
+        LIMIT 1
+        FOR UPDATE OF d SKIP LOCKED
+    """, nativeQuery = true)
+    fun findNearestIdleDriverInTerritory(
+        @org.springframework.data.repository.query.Param("restaurantLocation") restaurantLocation: org.locationtech.jts.geom.Point,
+        @org.springframework.data.repository.query.Param("territoryId") territoryId: Long,
+        @org.springframework.data.repository.query.Param("cutoff")
+        cutoff: java.time.Instant = java.time.Instant.now().minusSeconds(45)
+    ): DriverProfile?
+
     @Modifying
     @Transactional
     @Query("UPDATE DriverProfile p SET p.lastSeenAt = :now WHERE p.userId = :userId")

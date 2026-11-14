@@ -112,6 +112,10 @@ data class DriverProfile(
     @Column(name = "status", nullable = false, length = 20)
     var status: DriverStatus = DriverStatus.IDLE,
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "territory_id")
+    var territory: Territory? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant? = null

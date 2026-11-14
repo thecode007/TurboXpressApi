@@ -118,19 +118,23 @@ class OrderController(
         @RequestParam(required = false, defaultValue = "false") archive: Boolean = false,
         @RequestParam(required = false) query: String? = null,
         @RequestParam(required = false) status: OrderStatus? = null,
-        @RequestParam(required = false) restaurantId: Long? = null
+        @RequestParam(required = false) restaurantId: Long? = null,
+        @RequestParam(required = false) territoryId: Long? = null,
+        @AuthenticationPrincipal principal: PermissionDecorator? = null
     ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
+        val effectiveTerritoryId = principal?.getTerritoryId() ?: territoryId
         if (archive) {
             val orders = orderService.getArchivedOrders(
                 query = query,
                 status = status,
-                restaurantId = restaurantId
+                restaurantId = restaurantId,
+                territoryId = effectiveTerritoryId
             )
             return ResponseEntity.ok(BaseResponse.success("Archived orders retrieved successfully", orders))
         }
 
         val sinceInstant = parseInstant(since)
-        val orders = orderService.getAllOrders(sinceInstant)
+        val orders = orderService.getAllOrders(sinceInstant, effectiveTerritoryId)
         return ResponseEntity.ok(BaseResponse.success("Orders retrieved successfully", orders))
     }
 
@@ -140,16 +144,20 @@ class OrderController(
         @RequestParam(required = false) status: OrderStatus? = null,
         @RequestParam(required = false) restaurantId: Long? = null,
         @RequestParam(required = false) from: String? = null,
-        @RequestParam(required = false) to: String? = null
+        @RequestParam(required = false) to: String? = null,
+        @RequestParam(required = false) territoryId: Long? = null,
+        @AuthenticationPrincipal principal: PermissionDecorator? = null
     ): ResponseEntity<BaseResponse<List<OrderResponse>>> {
         val fromInstant = parseInstant(from)
         val toInstant = parseInstant(to)
+        val effectiveTerritoryId = principal?.getTerritoryId() ?: territoryId
         val orders = orderService.getArchivedOrders(
             query = query,
             status = status,
             restaurantId = restaurantId,
             from = fromInstant,
-            to = toInstant
+            to = toInstant,
+            territoryId = effectiveTerritoryId
         )
         return ResponseEntity.ok(BaseResponse.success("Archived orders retrieved successfully", orders))
     }

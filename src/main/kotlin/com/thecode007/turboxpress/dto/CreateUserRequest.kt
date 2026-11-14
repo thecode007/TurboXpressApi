@@ -19,5 +19,7 @@ data class CreateUserRequest(
     val password: String,
     
     @field:NotEmpty(message = "At least one role is required")
-    val roleIds: List<Int>
+    val roleIds: List<Int>,
+
+    val territoryId: Long? = null
 )

@@ -12,4 +12,5 @@ interface RestaurantRepository : JpaRepository<Restaurant, Long> {
     fun existsByName(name: String): Boolean
     fun existsByNameAndIdNot(name: String, id: Long): Boolean
     fun findFirstByOwnerPhoneNumber(phoneNumber: String): java.util.Optional<Restaurant>
+    fun findFirstByOwnerPhoneNumberIn(phoneNumbers: Collection<String>): java.util.Optional<Restaurant>
 }

@@ -27,7 +27,7 @@ class AdminPermissionDecorator(
     override fun getContext(): Map<String, Any> {
         val context = wrapped.getContext().toMutableMap()
         context["adminLevel"] = "SUPER_ADMIN"
-        context["accessScope"] = "GLOBAL"
+        context["accessScope"] = if (wrapped.getTerritoryId() != null) "TERRITORY" else "GLOBAL"
         return context
     }
 

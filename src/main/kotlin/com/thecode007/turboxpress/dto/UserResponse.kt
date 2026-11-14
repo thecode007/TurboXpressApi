@@ -12,5 +12,7 @@ data class UserResponse(
     @get:JsonProperty("isActive")
     val isActive: Boolean,
     val createdAt: Instant,
-    val roles: Set<String>
+    val roles: Set<String>,
+    val territoryId: Long? = null,
+    val territoryName: String? = null
 )

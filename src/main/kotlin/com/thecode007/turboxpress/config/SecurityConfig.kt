@@ -2,6 +2,8 @@ package com.thecode007.turboxpress.config
 
 import com.thecode007.turboxpress.security.JwtAuthenticationFilter
 import com.thecode007.turboxpress.security.RoleScopeFilter
+import jakarta.servlet.http.HttpServletResponse
+import org.springframework.http.MediaType
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
@@ -56,6 +58,21 @@ class SecurityConfig(
 
                     // -- Everything else requires authentication ----------------------------
                     .anyRequest().authenticated()
+            }
+            .exceptionHandling { exceptions ->
+                exceptions
+                    .authenticationEntryPoint { _, response, _ ->
+                        response.status = HttpServletResponse.SC_UNAUTHORIZED
+                        response.contentType = MediaType.APPLICATION_JSON_VALUE
+                        val body = """{"success":false,"code":"UNAUTHORIZED","message":"Full authentication is required to access this resource"}"""
+                        response.writer.write(body)
+                    }
+                    .accessDeniedHandler { _, response, accessDeniedException ->
+                        response.status = HttpServletResponse.SC_FORBIDDEN
+                        response.contentType = MediaType.APPLICATION_JSON_VALUE
+                        val body = """{"success":false,"code":"FORBIDDEN","message":"${accessDeniedException.message ?: "Access is denied"}"}"""
+                        response.writer.write(body)
+                    }
             }
             .sessionManagement { session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)

@@ -18,6 +18,7 @@ import java.util.*
 class UserService(
     private val userRepository: UserRepository,
     private val roleRepository: RoleRepository,
+    private val territoryRepository: com.thecode007.turboxpress.repository.TerritoryRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
     @Value("\${jwt.impersonation.expiration}")
@@ -50,6 +51,10 @@ class UserService(
     fun createUser(request: CreateUserRequest): UserResponse {
         // Get roles
         val roles = roleRepository.findAllById(request.roleIds).toMutableSet()
+        val territory = request.territoryId?.let { id ->
+            territoryRepository.findById(id)
+                .orElseThrow { com.thecode007.turboxpress.exception.ResourceNotFoundException("Territory not found with id: $id") }
+        }
         
         // Create user
         val user = User(
@@ -58,7 +63,8 @@ class UserService(
             phoneNumber = request.phoneNumber,
             passwordHash = passwordEncoder.encode(request.password) ?: "",
             isActive = true,
-            roles = roles
+            roles = roles,
+            territory = territory
         )
         
         val savedUser = userRepository.save(user)
@@ -72,12 +78,17 @@ class UserService(
         
         // Get roles
         val roles = roleRepository.findAllById(request.roleIds).toMutableSet()
+        val territory = request.territoryId?.let { id ->
+            territoryRepository.findById(id)
+                .orElseThrow { com.thecode007.turboxpress.exception.ResourceNotFoundException("Territory not found with id: $id") }
+        }
         
         // Update user
         user.fullName = request.fullName
         user.phoneNumber = request.phoneNumber
         user.isActive = request.isActive
         user.roles = roles
+        user.territory = territory
         
         val updatedUser = userRepository.save(user)
         return updatedUser.toUserResponse()
@@ -119,7 +130,9 @@ class UserService(
             phoneNumber = this.phoneNumber,
             isActive = this.isActive,
             createdAt = this.createdAt!!,
-            roles = this.roles.map { it.roleName }.toSet()
+            roles = this.roles.map { it.roleName }.toSet(),
+            territoryId = this.territory?.id,
+            territoryName = this.territory?.name
         )
     }
 }

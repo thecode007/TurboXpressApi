@@ -27,6 +27,10 @@ class Restaurant(
     @JoinColumn(name = "owner_id", referencedColumnName = "phone_number", nullable = false)
     var owner: Owner,
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "territory_id")
+    var territory: Territory? = null,
+
     @Column(name = "monthly_sub_fee", nullable = false)
     var monthlySubFee: Double = 0.0,
 

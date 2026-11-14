@@ -25,18 +25,24 @@ class AdminDriverController(
     fun getAllActiveDrivers(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int,
-        @RequestParam(required = false) search: String?
+        @RequestParam(required = false) search: String?,
+        @RequestParam(required = false) territoryId: Long?,
+        @org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator?
     ): ResponseEntity<BaseResponse<PageResponse<DriverResponse>>> {
         val pageable = PageRequest.of(page, size)
-        val response = adminDriverService.getAllActiveDrivers(pageable, search)
+        val effectiveTerritoryId = principal?.getTerritoryId() ?: territoryId
+        val response = adminDriverService.getAllActiveDrivers(pageable, search, effectiveTerritoryId)
         return ResponseEntity.ok(BaseResponse.success("Drivers retrieved successfully", response))
     }
 
     @GetMapping("/available")
     fun getAvailableDrivers(
-        @RequestParam(required = false) search: String?
+        @RequestParam(required = false) search: String?,
+        @RequestParam(required = false) territoryId: Long?,
+        @org.springframework.security.core.annotation.AuthenticationPrincipal principal: com.thecode007.turboxpress.security.decorator.PermissionDecorator?
     ): ResponseEntity<BaseResponse<List<DriverResponse>>> {
-        val response = adminDriverService.getAvailableDrivers(search)
+        val effectiveTerritoryId = territoryId ?: principal?.getTerritoryId()
+        val response = adminDriverService.getAvailableDrivers(search, effectiveTerritoryId)
         return ResponseEntity.ok(BaseResponse.success("Available drivers retrieved successfully", response))
     }
 

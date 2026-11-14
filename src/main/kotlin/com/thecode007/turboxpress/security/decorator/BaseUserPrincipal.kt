@@ -1,4 +1,4 @@
-﻿package com.thecode007.turboxpress.security.decorator
+package com.thecode007.turboxpress.security.decorator
 
 import com.thecode007.turboxpress.entity.User
 import org.springframework.security.core.GrantedAuthority
@@ -18,8 +18,17 @@ open class BaseUserPrincipal(
     override fun getFullName(): String = user.fullName
     override fun getPhoneNumber(): String = user.phoneNumber
     override fun getRoleNames(): Set<String> = user.roles.map { it.roleName }.toSet()
+    override fun getTerritoryId(): Long? = user.territory?.id
+    override fun getTerritoryName(): String? = user.territory?.name
     override fun getPermissions(): Set<String> = emptySet()
-    override fun getContext(): Map<String, Any> = emptyMap()
+    override fun getContext(): Map<String, Any> {
+        val ctx = mutableMapOf<String, Any>()
+        user.territory?.let {
+            ctx["territoryId"] = it.id
+            ctx["territoryName"] = it.name
+        }
+        return ctx
+    }
 
     override fun getAuthorities(): Collection<GrantedAuthority> {
         return user.roles.map { SimpleGrantedAuthority("ROLE_${it.roleName}") }

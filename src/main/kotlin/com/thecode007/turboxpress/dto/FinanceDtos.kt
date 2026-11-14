@@ -58,6 +58,8 @@ data class DriverFinanceSummary(
     val accumulatedProfitToCollect: Double = 0.0,
     val accumulatedTotalBalanceDue: Double = 0.0,
     val nextBillingDate: LocalDate,
+    val onlineMinutes: Long = 0L,
+    val onlineHoursFormatted: String? = null,
     val recentOrders: List<DriverOrderFinanceItem>
 )
 

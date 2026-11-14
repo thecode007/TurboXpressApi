@@ -16,6 +16,7 @@ class ProfileService(
     private val userRepository: UserRepository,
     private val mediaService: MediaService,
     private val driverLocationService: DriverLocationService,
+    private val driverOnlineTrackingService: DriverOnlineTrackingService,
     private val orderEventBroadcaster: OrderEventBroadcaster,
     @org.springframework.context.annotation.Lazy private val orderService: OrderService,
     @org.springframework.beans.factory.annotation.Value("\${driver.online.stale-threshold-seconds:45}")
@@ -202,6 +203,7 @@ class ProfileService(
                 profile.goOnline()
                 driverProfileRepository.save(profile)
                 driverLocationService.recordHeartbeat(userId)
+                driverOnlineTrackingService.onDriverGoOnline(userId)
                 logger.info("Updated online status to ONLINE for driver $userId")
                 orderEventBroadcaster.broadcast(
                     type = "DRIVER_STATUS_CHANGED",
@@ -215,6 +217,7 @@ class ProfileService(
                 profile.goOffline()
                 driverProfileRepository.save(profile)
                 driverLocationService.evictPresence(userId)
+                driverOnlineTrackingService.onDriverGoOffline(userId)
                 logger.info("Updated online status to OFFLINE for driver $userId")
                 orderEventBroadcaster.broadcast(
                     type = "DRIVER_STATUS_CHANGED",

@@ -28,9 +28,10 @@ class AdminProfileService(
     private val ownerProfileRepository: OwnerProfileRepository,
     private val systemAdminProfileRepository: SystemAdminProfileRepository,
     private val ownerRepository: OwnerRepository,
-    private val restaurantRepository: RestaurantRepository
+    private val restaurantRepository: RestaurantRepository,
+    private val territoryRepository: TerritoryRepository
 ) {
-    private val geometryFactory = GeometryFactory()
+    private val geometryFactory = GeometryFactory(org.locationtech.jts.geom.PrecisionModel(), 4326)
 
     /**
      * Sets a profile's [VerificationStatus] to APPROVED.
@@ -198,13 +199,16 @@ class AdminProfileService(
         // Parse the "lat, lng" string submitted by the owner wizard into a proper geometry Point
         val restaurantName = profile.businessName ?: user.fullName
         if (!restaurantRepository.existsByName(restaurantName)) {
+            val locationPoint = parseLocation(profile.restaurantLocation)
+            val matchedTerritory = territoryRepository.findActiveTerritoriesContainingPoint(locationPoint).firstOrNull()
             restaurantRepository.save(
                 Restaurant(
                     name = restaurantName,
                     logoUrl = profile.profilePictureUrl,
-                    location = parseLocation(profile.restaurantLocation),
+                    location = locationPoint,
                     locationDescription = profile.locationDescription,
                     owner = owner,
+                    territory = matchedTerritory,
                     monthlySubFee = 0.0,
                     commissionRate = 0.0
                 )
@@ -259,13 +263,16 @@ class AdminProfileService(
             // Auto-create restaurant if not exists
             val restaurantName = profile.businessName ?: user.fullName
             if (!restaurantRepository.existsByName(restaurantName)) {
+                val locationPoint = parseLocation(profile.restaurantLocation)
+                val matchedTerritory = territoryRepository.findActiveTerritoriesContainingPoint(locationPoint).firstOrNull()
                 restaurantRepository.save(
                     Restaurant(
                         name = restaurantName,
                         logoUrl = profile.profilePictureUrl,
-                        location = parseLocation(profile.restaurantLocation),
+                        location = locationPoint,
                         locationDescription = profile.locationDescription,
                         owner = owner,
+                        territory = matchedTerritory,
                         monthlySubFee = 0.0,
                         commissionRate = 0.0
                     )

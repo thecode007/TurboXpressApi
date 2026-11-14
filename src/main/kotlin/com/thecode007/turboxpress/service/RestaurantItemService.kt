@@ -1,4 +1,4 @@
-package com.thecode007.turboxpress.service
+spackage com.thecode007.turboxpress.service
 
 import com.thecode007.turboxpress.dto.CreateRestaurantItemRequest
 import com.thecode007.turboxpress.dto.RestaurantItemResponse
@@ -38,7 +38,7 @@ class RestaurantItemService(
 
     @Transactional
     fun addItemToRestaurantByOwner(ownerPhoneNumber: String, request: CreateRestaurantItemRequest): RestaurantItemResponse {
-        val restaurant = restaurantRepository.findFirstByOwnerPhoneNumber(ownerPhoneNumber)
+        val restaurant = restaurantRepository.findFirstByOwnerPhoneNumberIn(RestaurantService.getCandidatePhoneNumbers(ownerPhoneNumber))
             .orElseThrow { IllegalArgumentException("Restaurant not found for owner: $ownerPhoneNumber") }
 
         val item = RestaurantItem(
