@@ -1,4 +1,4 @@
-spackage com.thecode007.turboxpress.service
+package com.thecode007.turboxpress.service
 
 import com.thecode007.turboxpress.dto.CreateRestaurantItemRequest
 import com.thecode007.turboxpress.dto.RestaurantItemResponse

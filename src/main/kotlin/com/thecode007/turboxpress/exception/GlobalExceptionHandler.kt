@@ -157,6 +157,18 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response)
     }
 
+    @ExceptionHandler(DuplicateResourceException::class)
+    fun handleDuplicateResource(
+        ex: DuplicateResourceException,
+        request: HttpServletRequest
+    ): ResponseEntity<BaseResponse<Nothing>> {
+        val response = BaseResponse.error<Nothing>(
+            message = ex.message ?: "Resource already exists",
+            code = "CONFLICT"
+        )
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response)
+    }
+
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException::class)
     fun handleDataIntegrityViolation(
         ex: org.springframework.dao.DataIntegrityViolationException,

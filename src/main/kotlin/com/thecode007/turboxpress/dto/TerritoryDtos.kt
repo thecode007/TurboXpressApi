@@ -2,6 +2,11 @@ package com.thecode007.turboxpress.dto
 
 import jakarta.validation.constraints.NotBlank
 
+data class GeoPointDto(
+    val lat: Double,
+    val lng: Double
+)
+
 data class TerritoryResponse(
     val id: Long,
     val name: String,
