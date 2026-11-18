@@ -67,7 +67,7 @@ class UserService(
             territory = territory
         )
         
-        val savedUser = userRepository.save(user)
+        val savedUser = userRepository.saveAndFlush(user)
         return savedUser.toUserResponse()
     }
     
@@ -129,7 +129,7 @@ class UserService(
             fullName = this.fullName,
             phoneNumber = this.phoneNumber,
             isActive = this.isActive,
-            createdAt = this.createdAt!!,
+            createdAt = this.createdAt ?: java.time.Instant.now(),
             roles = this.roles.map { it.roleName }.toSet(),
             territoryId = this.territory?.id,
             territoryName = this.territory?.name
