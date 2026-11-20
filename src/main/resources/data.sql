@@ -7,7 +7,8 @@ INSERT INTO roles (id, role_name) VALUES
 (1, 'CUSTOMER'),
 (2, 'COURIER'),
 (3, 'MERCHANT'),
-(4, 'ADMIN')
+(4, 'ADMIN'),
+(5, 'SUPPORT')
 ON CONFLICT (id) DO NOTHING;
 
 -- Seed Admin User (username: 'admin', password: 'admin123')

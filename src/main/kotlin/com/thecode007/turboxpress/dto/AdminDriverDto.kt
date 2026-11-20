@@ -1,5 +1,6 @@
 package com.thecode007.turboxpress.dto
 
+import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonProperty
 
 data class DriverResponse(
@@ -42,6 +43,7 @@ data class UpdateDriverRequest(
     val fullName: String,
     val profilePictureUrl: String? = null,
     @field:JsonProperty("isActive")
+    @field:JsonAlias("active")
     val isActive: Boolean,
     val dailyRate: Double = 0.0,
     val territoryId: Long? = null
